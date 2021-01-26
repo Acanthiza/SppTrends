@@ -1,3 +1,431 @@
+  
+# get a bib entry from a DOI
+  get_bib <- function(DOI,outFile = NULL){
+    
+    # https://stackoverflow.com/questions/57340204/r-convert-list-of-dois-to-bibtex
+    
+    h <- curl::new_handle()
+    curl::handle_setheaders(h, "accept" = "application/x-bibtex")
+    
+    get_the_bib <- function(doi) {
+      
+      try(
+        curl::curl(doi,handle=h) %>%
+        readLines(warn = FALSE) %>%
+        {if(is.character(outFile)) write(.,file=outFile,append = TRUE) else (.)}
+      )
+      
+    }
+    
+    DOI %>%
+      gsub("https://doi.org/","",.,fixed = TRUE) %>%
+      paste0("https://doi.org/",.) %>%
+      map(get_the_bib)
+    
+  }
+
+
+  # Git add.
+  gitadd <- function(dir = getwd()){
+    cmd_list <- list(
+      cmd1 = tolower(substr(dir,1,2)),
+      cmd2 = paste("cd",dir),
+      cmd3 = "git add --all"
+    )
+    cmd <- paste(unlist(cmd_list),collapse = " & ")
+    shell(cmd)
+  }
+  
+  # Git commit.
+  gitcommit <- function(msg = "commit from Rstudio", dir = getwd()){
+    cmd = sprintf("git commit -m\"%s\"",msg)
+    shell(cmd)
+  }
+  
+  # Git push.
+  gitpush <- function(dir = getwd()){
+    cmd_list <- list(
+      cmd1 = tolower(substr(dir,1,2)),
+      cmd2 = paste("cd",dir),
+      cmd3 = "git push"
+    )
+    cmd <- paste(unlist(cmd_list),collapse = " & ")
+    shell(cmd)
+  }
+
+
+# Site a package in rmarkdown
+  # assumes these have been run and that 'packages' contains all packages to cite
+    # knnitr::write_bib(packages,"packageCitations.bib")
+    # refs <- bib2df::bib2df("packageCitations.bib")
+
+  cite_package <- function(package,brack = TRUE,startText = "", endText = "") {
+    
+    thisRef <- refs %>%
+      dplyr::filter(grepl(paste0("-",package),BIBTEXKEY) | grepl(paste0("^",package),BIBTEXKEY)) %>%
+      dplyr::pull(BIBTEXKEY)
+    
+    starts <- if(brack) paste0("[",startText,"@") else paste0(startText,"@")
+    ends <- if(brack) paste0(endText,"]") else endText
+    
+    if(length(thisRef) > 1) {
+      
+      paste0(starts,paste0(thisRef,collapse = "; @"),ends)
+      
+    } else {
+      
+      paste0(starts,"R-",package,ends)
+      
+    }
+    
+  }
+  
+# make package bibliography, including tweaks for known package issues.
+  fix_bib <- function(bibFile, makeKey = FALSE, isPackageBib = FALSE) {
+    
+    inRefs <- bib2df::bib2df(bibFile)
+    
+    namesInRefs <- colnames(inRefs) %>%
+      grep("\\.\\d+$",.,value = TRUE,invert = TRUE) %>%
+      `[`(1:28) %>%
+      c(.,"COPYRIGHT")
+    
+    refs <- inRefs %>%
+      {if(isPackageBib) (.) %>% dplyr::mutate(package = gsub("R-|\\d{4}","",BIBTEXKEY)) else (.)} %>%
+      tidytext::unnest_tokens("titleWords"
+                              ,TITLE
+                              ,token = "regex"
+                              ,pattern = " "
+                              ,to_lower = FALSE
+                              #,strip_punct = FALSE
+                              ,collapse = FALSE
+                              ) %>%
+      dplyr::mutate(titleWords = gsub("\\{|\\}","",titleWords)
+                    , isCap = grepl(paste0(LETTERS,collapse="|"),titleWords)
+                    , titleWords = if_else(isCap,paste0("{",titleWords,"}"),titleWords)
+                    ) %>%
+      tidyr::nest(data = c(titleWords,isCap)) %>%
+      dplyr::mutate(TITLE = map_chr(data,. %>% dplyr::pull(titleWords) %>% paste0(collapse = " "))
+                    , AUTHOR = map(AUTHOR,~gsub("Microsoft Corporation","{Microsoft Corporation}",.))
+                    , AUTHOR = map(AUTHOR,~gsub("Fortran original by |R port by ","",.))
+                    , AUTHOR = map(AUTHOR, ~gsub("with contributions by","and",.))
+                    , AUTHOR = map(AUTHOR, ~gsub("Â "," ",.))
+                    , YEAR = substr(YEAR,1,4)
+                    ) %>%
+      {if(makeKey) (.) %>%
+          dplyr::mutate(BIBTEXKEY = map2_chr(AUTHOR
+                                       ,YEAR
+                                       ,~paste0(toupper(gsub("[[:punct:]]|\\s","",.x[[1]]))
+                                                , .y
+                                                )
+                                       )
+                        ) else (.)} %>%
+      {if(isPackageBib) (.) %>% dplyr::mutate(TITLE = map2_chr(package,TITLE,~gsub(.x,paste0("{",.x,"}"),.y))) else (.)} %>%
+      dplyr::select(any_of(namesInRefs)) %>%
+      dplyr::filter(!grepl("MEDIA SCREEN AND",CATEGORY))
+    
+    bib2df::df2bib(refs,bibFile)
+    
+    return(refs)
+    
+  }
+
+
+# Are the values within a column unique
+  col_is_unique <- function(df,col = "SiteID") {
+    
+    notUnique <- df %>%
+      dplyr::select(grep("^n$",names(.),value = TRUE,invert = TRUE)) %>%
+      dplyr::count(!!ensym(col)) %>%
+      dplyr::filter(n > 1)
+    
+    print(paste0("there are ",nrow(notUnique)," ",col,"(s) that are not unique: ",dplyr::pull(notUnique[,1])))
+    
+  }
+
+
+# Unscale scaled data
+unscale_data <- function(scaledData) {
+  
+  scaledData*attr(scaledData,"scaled:scale")+attr(scaledData,"scaled:center")
+  
+}
+
+
+# From https://github.com/mtennekes/tmap/issues/255 - who got it from:
+#http://stackoverflow.com/questions/20241065/r-barplot-wrapping-long-text-labels
+
+# Core wrapping function
+  wrap.it <- function(x, len) { 
+    
+    sapply(x, function(y) paste(strwrap(y, len), 
+                                collapse = "\n"), 
+           USE.NAMES = FALSE)
+  }
+
+# Call this function with a list or vector
+  wrap.labels <- function(x, len) {
+    
+    if (is.list(x))
+    {
+      lapply(x, wrap.it, len)
+    } else {
+      wrap.it(x, len)
+    }
+  }
+
+
+
+# From https://gist.github.com/danlwarren/271288d5bab45d2da549
+
+# Function to rarefy point data in any number of dimensions.  The goal here is to 
+# take a large data set and reduce it in size in such a way as to approximately maximize the 
+# difference between points.  For instance, if you have 2000 points but suspect a lot of 
+# spatial autocorrelation between them, you can pass in your data frame, the names (or indices)
+# of the lat/lon columns, and the number 200, and you get back 200 points from your original data 
+# set that are chosen to be as different from each other as possible given a randomly chosen
+# starting point
+
+# Input is:
+#
+# x, a data frame containing the columns to be used to calculate distances along with whatever other data you need
+# cols, a vector of column names or indices to use for calculating distances
+# npoints, the number of rarefied points to spit out
+#
+# e.g., thin.max(my.data, c("latitude", "longitude"), 200)
+  
+  
+  thin_max <- function(x, cols, npoints){
+    #Create empty vector for output
+    inds <- vector(mode="numeric")
+    
+    #Create distance matrix
+    this.dist <- as.matrix(dist(x[,cols], upper=TRUE))
+    
+    #Draw first index at random
+    inds <- c(inds, as.integer(runif(1, 1, length(this.dist[,1]))))
+    
+    #Get second index from maximally distant point from first one
+    #Necessary because apply needs at least two columns or it'll barf
+    #in the next bit
+    inds <- c(inds, which.max(this.dist[,inds]))
+    
+    while(length(inds) < npoints){
+      #For each point, find its distance to the closest point that's already been selected
+      min.dists <- apply(this.dist[,inds], 1, min)
+      
+      #Select the point that is furthest from everything we've already selected
+      this.ind <- which.max(min.dists)
+      
+      #Get rid of ties, if they exist
+      if(length(this.ind) > 1){
+        print("Breaking tie...")
+        this.ind <- this.ind[1]
+      }
+      inds <- c(inds, this.ind)
+    }
+    
+    return(x[inds,])
+  }
+
+# A function to run random forest over a df with first column 'cluster' and other columns explanatory
+
+  rf_mod_fold <- function(envClust
+                     , clustCol = "cluster"
+                     , envCols = names(patchesEnvSelect)[-1]
+                     , idCol = "SiteID"
+                     , doFolds = folds
+                     , outFile
+                     , saveModel = FALSE
+                     , saveImp = FALSE
+                     , ...
+                     ){
+    
+    idCol <- if(is.numeric(idCol)) names(envClust)[idCol] else idCol
+    
+    clustCol <- if(is.numeric(clustCol)) names(envClust)[clustCol] else clustCol
+    
+    envCols <- if(is.numeric(envCols)) names(envClust)[envCols] else envCols
+    
+    envClust <- envClust %>%
+      dplyr::mutate(fold = sample(1:doFolds,nrow(.),replace=TRUE,rep(1/doFolds,doFolds)))
+    
+    folds <- 1:doFolds
+    
+    fold_rf_mod <- function(fold) {
+      
+      outFile <- gsub("_conf",paste0("_fold",fold,"_conf"),outFile)
+      
+      if(!file.exists(outFile)) {
+        
+        if(doFolds > 1) {
+          
+          train <- envClust[envClust$fold != fold,which(names(envClust) %in% c(clustCol,envCols))] %>%
+            dplyr::mutate(cluster = factor(cluster))
+          
+          test <- envClust[envClust$fold == fold,which(names(envClust) %in% c(idCol,clustCol,envCols))] %>%
+            dplyr::mutate(cluster = factor(cluster, levels = levels(train$cluster)))
+          
+          rfMod <- randomForest(x = train[,envCols]
+                                , y = train[,clustCol] %>% dplyr::pull(!!ensym(clustCol))
+                                , ntree = 500
+                                , importance = saveImp
+                                )
+        
+          rfPred <- test %>%
+            dplyr::select(!!ensym(idCol),!!ensym(clustCol)) %>%
+            dplyr::bind_cols(predict(rfMod
+                                     , newdata = test[,envCols]
+                                     ) %>%
+                               tibble::enframe(name = NULL, value = "predCluster")
+                             ) %>%
+            dplyr::bind_cols(predict(rfMod
+                                     , newdata = test[,envCols]
+                                     , type = "prob"
+                                     ) %>%
+                               as_tibble()
+                             )
+          
+        } else {
+          
+          rfMod <- randomForest::randomForest(x = envClust[,which(names(envClust) %in% c(envCols))]
+                                              , y = envClust %>% dplyr::pull(!!ensym(clustCol))
+                                              , ntree = 500
+                                              , importance = saveImp
+                                              )
+          
+          rfPred <- envClust[,c(idCol,clustCol)] %>%
+            dplyr::bind_cols(predict(rfMod) %>%
+                               tibble::enframe(name = NULL, value = "predCluster")
+                             ) %>%
+            dplyr::bind_cols(predict(rfMod
+                                     , type = "prob"
+                                     ) %>%
+                               as_tibble()
+                             )
+          
+        }
+        
+        feather::write_feather(rfPred,outFile)
+        
+        if(saveImp) {feather::write_feather(as_tibble(rfMod$importance, rownames = "att"),gsub("_rfPred","_rfImp",outFile))}
+        
+        if(saveModel) {feather::write_feather(rfMod,gsub("_rfPred","",outFile))}
+        
+      }
+      
+    }
+    
+    map(folds,fold_rf_mod)
+    
+    }
+  
+  rf_mod <- function(envClust
+                          , clustCol
+                          , envCols
+                          , idCol
+                          , outFile
+                          , saveModel = FALSE
+                          , saveImp = FALSE
+                          , ...
+                     ){
+    
+    idCol <- if(is.numeric(idCol)) names(envClust)[idCol] else idCol
+    
+    clustCol <- if(is.numeric(clustCol)) names(envClust)[clustCol] else clustCol
+    
+    envCols <- if(is.numeric(envCols)) names(envClust)[envCols] else envCols
+    
+    rfMod <- randomForest::randomForest(x = envClust[,which(names(envClust) %in% c(envCols))]
+                                        , y = envClust %>% dplyr::pull(!!ensym(clustCol))
+                                        , ntree = 500
+                                        , importance = saveImp
+                                        )
+    
+    rfPred <- envClust[,c(idCol,clustCol)] %>%
+      dplyr::bind_cols(predict(rfMod) %>%
+                         tibble::enframe(name = NULL, value = "predCluster")
+                       ) %>%
+      dplyr::bind_cols(predict(rfMod
+                               , type = "prob"
+                               ) %>%
+                         as_tibble()
+                       )
+    
+    feather::write_feather(rfPred,outFile)
+    
+    if(saveImp) {feather::write_feather(as_tibble(rfMod$importance, rownames = "att"),gsub("_rfPred","_rfImp",outFile))}
+    
+    if(saveModel) {feather::write_feather(rfMod,gsub("_rfPred","",outFile))}
+    
+  }
+
+
+# A function to run random forest using tidymodels dialogue
+  
+  run_rf <- function(datTrain,modRecipe) {
+    
+    randomForest::randomForest(as.formula(modRecipe)
+                               , data = datTrain
+                               , ntree = 500
+                               )
+    
+  }
+    
+    
+# Function to get data out of 32 bit MS Access from 64 bit R
+# see https://stackoverflow.com/questions/13070706/how-to-connect-r-with-access-database-in-64-bit-window
+
+access_query_32 <- function(db_path, db_table = "qryData_RM", table_out = "data_access") {
+  
+  library(svSocket)
+  
+  # variables to make values uniform
+  sock_port <- 8642L
+  sock_con <- "sv_con"
+  ODBC_con <- "a32_con"
+  
+  if (file.exists(db_path)) {
+    
+    # build ODBC string
+    ODBC_str <- local({
+      s <- list()
+      s$path <- paste0("DBQ=", gsub("(/|\\\\)+", "/", path.expand(db_path)))
+      s$driver <- "Driver={Microsoft Access Driver (*.mdb, *.accdb)}"
+      s$threads <- "Threads=4"
+      s$buffer <- "MaxBufferSize=4096"
+      s$timeout <- "PageTimeout=5"
+      paste(s, collapse=";")
+    })
+    
+    # start socket server to transfer data to 32 bit session
+    startSocketServer(port=sock_port, server.name="access_query_32", local=TRUE)
+    
+    # build expression to pass to 32 bit R session
+    expr <- "library(svSocket)"
+    expr <- c(expr, "library(RODBC)")
+    expr <- c(expr, sprintf("%s <- odbcDriverConnect('%s')", ODBC_con, ODBC_str))
+    expr <- c(expr, sprintf("if('%1$s' %%in%% sqlTables(%2$s)$TABLE_NAME) {%1$s <- sqlFetch(%2$s, '%1$s')} else {%1$s <- 'table %1$s not found'}", db_table, ODBC_con))
+    expr <- c(expr, sprintf("%s <- socketConnection(port=%i)", sock_con, sock_port))
+    expr <- c(expr, sprintf("evalServer(%s, %s, %s)", sock_con, table_out, db_table))
+    expr <- c(expr, "odbcCloseAll()")
+    expr <- c(expr, sprintf("close(%s)", sock_con))
+    expr <- paste(expr, collapse=";")
+    
+    # launch 32 bit R session and run expressions
+    prog <- file.path(R.home(), "bin", "i386", "Rscript.exe")
+    system2(prog, args=c("-e", shQuote(expr)), stdout=NULL, wait=TRUE, invisible=TRUE)
+    
+    # stop socket server
+    stopSocketServer(port=sock_port)
+    
+    # display table fields
+    message("retrieved: ", table_out, " - ", paste(colnames(get(table_out)), collapse=", "))
+  } else {
+    warning("database not found: ", db_path)
+  }
+}
+
 # Function to create grid of continuous values - usually for prediction
 
   create_grid_cont <- function(df,vars,seqLength){
@@ -260,7 +688,7 @@ ah2sp <- function(x, increment=360, rnd=10, proj4string=CRS(as.character(NA)),to
       dplyr::mutate(alpha = 1.5*abs(value-50)
                     , colour = if_else(value > 0,"More likely","Less likely")
                     , text = paste0(round(abs(value),0),"%")
-                    , longText = paste0(var2, " occured ", text, " ", tolower(substr(colour,1,4)), " in ", var1, " than ",var1b)
+                    , longText = paste0(var2, " was ", text, " ", tolower(colour), " to occur in ", var1, " reviews than ",var1b," reviews")
                     , var1Comparison = paste0(var1," vs ",var1b)
                     , var1Comparison = fct_relevel(var1Comparison, grep("SA",unique(var1Comparison),value=TRUE))
                     ) %>%
@@ -413,7 +841,7 @@ ah2sp <- function(x, increment=360, rnd=10, proj4string=CRS(as.character(NA)),to
   
 
 # turn a vector into a comma separated list of values with a penultimate 'and'
-  vec_to_sentence <- function(x,sep=",") {
+  vec_to_sentence <- function(x,sep=",",end="and") {
     
     x[!is.na(x)] %>%
       paste(collapse = "JOINSRUS") %>%
@@ -424,7 +852,7 @@ ah2sp <- function(x, increment=360, rnd=10, proj4string=CRS(as.character(NA)),to
         
       } else {
         
-        stringi::stri_replace_last_regex(x,"JOINSRUS", " and ") %>%
+        stringi::stri_replace_last_regex(x,"JOINSRUS",paste0(" ",end," ")) %>%
           str_replace_all("JOINSRUS",paste0(sep," "))
         
       }
@@ -482,7 +910,9 @@ ah2sp <- function(x, increment=360, rnd=10, proj4string=CRS(as.character(NA)),to
     x <- round(x)
     suffixes <- c("thousand", "million", "billion", "trillion")
     if (length(x) > 1) return(trim(sapply(x, helper)))
-    helper(x)
+    res <- helper(x)
+    #res <- gsub(" ","",res)
+    return(res)
   }
   
 
@@ -525,4 +955,259 @@ ah2sp <- function(x, increment=360, rnd=10, proj4string=CRS(as.character(NA)),to
     results <- list("info"=info, "classif" = Jclassif, "breaks.max.GoF"=max.GoF.brks, "class.data" = df)
     return(results)
   }
+  
+  
+
+# a function to retrieve taxonomy to accepted names and retrieve taxonomic hierarchy for a df with a column of taxonomic names
+  
+  gbif_tax <- function(df,sppCol=1,idCol=2,outFile="data/luGBIF.feather",kingType="Plantae"){
+    
+    sppCol <- if(is.character(sppCol)) sppCol else names(df)[sppCol]
+    idCol <- if(is.character(idCol)) idCol else names(df)[idCol]
+    
+    dat <- if(file.exists(outFile)) {
+      
+      df %>%
+        dplyr::mutate(Species = !!ensym(sppCol)
+                      , id = !!ensym(idCol)
+        ) %>%
+        dplyr::anti_join(read_feather(outFile) %>%
+                           dplyr::filter(!is.na(key))
+                         , by = "id"
+        ) %>%
+        dplyr::arrange(Species)
+      
+    } else if (file.exists(paste0(gsub(".feather","",outFile),"_temp.feather"))) {
+      
+      df %>%
+        dplyr::mutate(Species = !!ensym(sppCol)
+                      , id = !!ensym(idCol)
+        ) %>%
+        dplyr::anti_join(read_feather(paste0(gsub(".feather","",outFile),"_temp.feather"))) %>%
+        dplyr::arrange(Species)
+      
+    } else {
+      
+      df %>%
+        dplyr::mutate(Species = !!ensym(sppCol)
+                      , id = !!ensym(idCol)
+        ) %>%
+        dplyr::arrange(Species)
+      
+    }
+    
+    taxa <- dat %>%
+      dplyr::pull(Species) %>%
+      gsub("dead|\\s*\\(.*\\)|\\'|\\?| spp\\.| sp\\.|#|\\s^","",.) %>%
+      gsub(" x .*$| X .*$","",.) %>%
+      str_squish()
+    
+    resStructure <- tribble(~id
+                            , ~usageKey
+                            , ~scientificName
+                            , ~canonicalName
+                            , ~rank
+                            , ~status
+                            , ~confidence
+                            , ~matchType
+                            , ~kingdom
+                            , ~phylum
+                            , ~class
+                            , ~order
+                            , ~family
+                            , ~genus
+                            , ~species
+                            , ~common
+                            , ~kingdomKey
+                            , ~phylumKey
+                            , ~classKey
+                            , ~orderKey
+                            , ~familyKey
+                            , ~genusKey
+                            , ~speciesKey
+                            , ~Species
+                            , ~Stamp
+    )
+    
+    
+    if(length(taxa)>0){
+      
+      for (i in 1:length(taxa)){
+        
+        print(taxa[i])
+        
+        taxGBIF <- name_backbone(taxa[i], kingdom = kingType)
+        
+        
+        if(taxGBIF$matchType == "NONE") {
+          
+          taxGBIF <- tibble(Species = taxa[i])
+          
+        }
+        
+        
+        taxGBIF <- if(sum(grepl("acceptedUsageKey",names(taxGBIF)))>0) {
+          name_usage(taxGBIF$acceptedUsageKey,return="data")$data %>%
+            dplyr::mutate(matchType = "Synonym") %>%
+            dplyr::rename(usageKey = key
+                          , status = taxonomicStatus
+            )
+        } else {
+          taxGBIF
+        }
+        
+        comGBIF <- name_usage(taxGBIF$usageKey, data="vernacularNames")$data
+        
+        taxGBIF[["common"]] <- if(nrow(comGBIF) > 0) {
+          
+          comGBIF %>%
+            dplyr::count(vernacularName) %>%
+            dplyr::arrange(desc(n)) %>%
+            dplyr::slice(1) %>%
+            dplyr::pull(vernacularName)
+          
+        } else ""
+        
+        res <- resStructure %>%
+          dplyr::bind_rows(
+            if(exists("taxGBIF")) {
+              as_tibble(taxGBIF) %>%
+                dplyr::bind_cols(dat[i,]) %>%
+                dplyr::mutate(Stamp = Sys.time())
+            } else {
+              dat[i,] %>%
+                dplyr::mutate(Stamp = Sys.time())
+            }
+          ) %>%
+          dplyr::select(1:ncol(resStructure))
+        
+        if(file.exists(paste0(gsub(".feather","",outFile),"_temp.feather"))) {
+          
+          write_feather(res %>%
+                          dplyr::bind_rows(read_feather(paste0(gsub(".feather","",outFile),"_temp.feather")))
+                        , paste0(gsub(".feather","",outFile),"_temp.feather")
+          )
+          
+        } else {
+          
+          write_feather(res
+                        , paste0(gsub(".feather","",outFile),"_temp.feather")
+          )  
+          
+        }
+        
+      }
+      
+    }
+    
+    # Clean up results
+    if(file.exists(paste0(gsub(".feather","",outFile),"_temp.feather"))) {
+      
+      read_feather(paste0(gsub(".feather","",outFile),"_temp.feather")) %>%
+        dplyr::mutate_if(is.logical,as.character) %>%
+        dplyr::mutate(confidence = as.numeric(confidence)) %>%
+        dplyr::mutate(Taxa = if_else(!is.na(species)
+                                     ,species
+                                     ,if_else(!is.na(genus)
+                                              , genus
+                                              , if_else(!is.na(family)
+                                                        , family
+                                                        , if_else(!is.na(order)
+                                                                  , order
+                                                                  , if_else(!is.na(class)
+                                                                            , class
+                                                                            , if_else(!is.na(phylum)
+                                                                                      , phylum
+                                                                                      , if_else(!is.na(kingdom)
+                                                                                                , kingdom
+                                                                                                , Species
+                                                                                      )
+                                                                            )
+                                                                  )
+                                                        )
+                                              )
+                                     )
+        )
+        ) %>%
+        dplyr::select(id = id
+                      , key = usageKey
+                      , Rank = rank
+                      , Taxa
+                      , originalName = Species
+                      , Kingdom = kingdom
+                      , Phylum = phylum
+                      , Class = class
+                      , Order = order
+                      , Family = family
+                      , Genus = genus
+                      , Species = species
+                      , Common = common
+                      , scientificName
+                      , canonicalName
+                      , Status = status
+                      , Confidence = confidence
+                      , Match = matchType
+                      , Stamp
+        ) %>%
+        (if(!file.exists(outFile)) {
+          
+          function(x) x
+          
+        } else {
+          
+          function(x) x %>%
+            dplyr::bind_rows(read_feather(outFile))
+          
+        }
+        
+        ) %>%
+        dplyr::group_by(id) %>%
+        dplyr::arrange(desc(Stamp)) %>%
+        dplyr::slice(1) %>%
+        dplyr::ungroup() %>%
+        write_feather(outFile)
+      
+      file.remove(paste0(gsub(".feather","",outFile),"_temp.feather"))
+      
+    } else {
+      
+      {warning( "No taxa supplied" ) }
+      
+    }
+    
+  }
+  
+  # Create polygon mask for filtering of patches
+  make_aoi <- function(polygons,filterPolys = FALSE,filterPolysCol=NULL,polyBuffer,doMask = TRUE) {
+    
+    if(filterPolys != FALSE) polygons <- polygons %>%
+        dplyr::filter(!!ensym(filterPolysCol) %in% filterPolys)
+    
+    polygons <- if(doMask) {
+      
+      polygons %>%
+        dplyr::mutate(dissolve = 1) %>%
+        dplyr::summarise(Include = n()) %>%
+        st_cast() %>%
+        st_buffer(polyBuffer) 
+      
+    } else {
+      
+      polygons %>%
+        dplyr::mutate(dissolve = 1) %>%
+        dplyr::summarise(Include = n()) %>%
+        st_cast() %>%
+        st_buffer(polyBuffer) %>%
+        st_bbox() %>%
+        st_as_sfc() %>%
+        st_sf() %>%
+        dplyr::mutate(Include = 1)
+      
+    }
+    
+    polygons <- polygons %>%
+      st_transform(crs = 3577)
+    
+  }
+  
   

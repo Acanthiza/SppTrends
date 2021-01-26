@@ -10,7 +10,7 @@ output:
     keep_md: no
     fig_caption: TRUE
 csl:                          "common/BibStyle.csl"
-bibliography:                 ["common/refs.bib","packageRefs.bib"]
+bibliography:                 ["common/refs.bib","common/packageCitations.bib"]
 link-citations: yes
 editor_options: 
   chunk_output_type: console
@@ -18,14 +18,7 @@ editor_options:
 
 # Setup code
 
-```{r setup, echo = TRUE, warning = FALSE, message = FALSE}
-
-  if(!exists("outName")) outName <- "2021-01-13-1422_KI"
-  getNewData <- TRUE
-  testing <- TRUE
-  
-  source("0005_setup.R")
-
+```{r setup, code = readLines("0010_setup.R"), echo = TRUE, warning = FALSE, message = FALSE}
 ```
 
 
@@ -48,7 +41,25 @@ editor_options:
 
 ```{r bdbsa}
 
-  source("code/bdbsa.r")
+  # Save to
+  saveTo <- paste0(dirname(outDir),"/bdbsa")
+  dir_create(saveTo)
+
+  if(bdbsa){
+    
+    source("code/bdbsa.r")
+    
+  } else {
+    
+    dir_ls(saveTo) %>%
+      purrr::map(read_rds) %>%
+      setNames(gsub(".rds","",path_file(names(.)))) %>%
+      purrr::walk2(names(.)
+                   ,.
+                   ,~assign(x = .x, value = .y, envir = .GlobalEnv)
+                  )
+    
+  }
 
 ```
 
@@ -58,40 +69,75 @@ editor_options:
 
 ```{r taxaAll}
 
-  taxaAll <- ls(pattern = "taxa") %>%
+  outFile <- paste0(outDir,"/taxaAll.rds")
+
+  if(file.exists(outFile)) {
+    
+    taxaAll <- read_rds(outFile)
+    
+  } else {
+
+    taxaAll <- ls(pattern = "taxa.+All$") %>%
       enframe(name = NULL, value = "objects") %>%
       dplyr::mutate(data = map(objects,get)) %>%
-      tidyr::unnest(cols = c(data)) %>%
+      tidyr::unnest() %>%
       dplyr::filter(!grepl(" another species|Not naturalised in SA|Unidentified|unverified",SPECIES)) %>%
       dplyr::mutate(SPECIES = gsub("\\s"," ",SPECIES))
-
   
-
-  
+    write_rds(taxaAll
+              , outFile
+              )
+    
+  }
 
 ```
 
-```{r taxaGeo}
+```{r patchesAll}
 
-  taxaExtent <- extent(taxaAll %>% 
-                              st_as_sf(coords = c("LONGITUDE","LATITUDE")
-                                       , crs = 4326
-                                       ) %>%
-                              st_transform(crs = crs(polys))
-                       )
-
-  r <- raster(extent(taxaExtent)
-                , res = c(gridSize,gridSize)
-                , crs = crs(polys)
+  r <- raster(extent(polys)
+                , resolution = gridSize
+                , crs = st_crs(polys)[[2]]
+                , vals = 1
                 )
 
-  taxaGeo <- taxaAll %>%
-    st_as_sf(coords = c("LONGITUDE","LATITUDE"), crs = 4326) %>%
-    st_transform(crs = crs(polys)) %>%
-    dplyr::mutate(cell = cellFromXY(r,as_Spatial(taxaGeo$geometry))) %>%
-    st_join(ibraSub
-            , join = st_intersects
-            )
+  rPoly <- r %>%
+    as('SpatialPolygonsDataFrame') %>%
+    st_as_sf() %>%
+    tibble::rowid_to_column(var = "Cell")
+
+  outFile <- paste0(outDir,"/patchesAll.rds")
+
+  if(file.exists(outFile)) {
+    
+    patchesAll <- read_rds(outFile)
+    
+  } else {
+    
+    patchesAll <- ls(pattern = "patches.+All$") %>%
+      enframe(name = NULL, value = "objects") %>%
+      dplyr::mutate(data = map(objects,get)) %>%
+      tidyr::unnest() %>%
+      st_as_sf(coords = c("LONGITUDE","LATITUDE")
+               , crs = 4283
+               , remove = FALSE # keep the Lat and Long fields even when they're turned into coordinates
+               ) %>%
+      st_transform(crs = st_crs(polys)) %>%
+      st_join(polys
+              , join = st_intersects
+              ) %>%
+      st_join(ibraSub
+              , join = st_intersects
+              ) %>%
+      st_join(rPoly
+              , join = st_intersects
+              ) %>%
+      dplyr::select(grep("SHAPE|OBJECTID",names(.),invert = TRUE))
+    
+      write_rds(patchesAll
+                , outFile
+                )
+
+  }
   
 ```
 
@@ -108,11 +154,13 @@ The following steps were taken to generate the single taxonomy:
 ```{r luGBIF}
 
   taxaAll %>%
-    dplyr::distinct(SPECIES) %>%
+    dplyr::count(SPECIES,NSXCODE) %>%
+    dplyr::select(SPECIES,id = NSXCODE) %>%
+    unique() %>%
     #dplyr::sample_n(30) %>% # FOR TESTING ONLY
-    gbif_tax(1,1,path("data","luGBIF.feather"),"Animalia")
+    gbif_tax(1,2,"data/luGBIF.csv","Animalia")
 
-  luGBIF <- read_feather(path("data","luGBIF.feather")) %>%
+  luGBIF <- read_csv("data/luGBIF.csv") %>%
     dplyr::mutate(TaxaGBIF = Taxa
                   , Rank = str_to_sentence(Rank)
                   , Rank = gsub("Division","Phylum",Rank)
@@ -122,8 +170,8 @@ The following steps were taken to generate the single taxonomy:
                                       )
                   )
   
-  luInd <- taxaBDBSA %>%
-    dplyr::left_join(luGBIF, by = c("SPECIES" = "id")) %>%
+  luInd <- taxaBDBSAAll %>%
+    dplyr::left_join(luGBIF, by = c("NSXCODE" = "id")) %>%
     dplyr::count(Taxa,ISINDIGENOUSFLAG) %>%
     dplyr::mutate(ISINDIGENOUS = if_else(is.na(ISINDIGENOUSFLAG),"Y","N")) %>%
     dplyr::filter(!is.na(Taxa)) %>%
@@ -132,9 +180,31 @@ The following steps were taken to generate the single taxonomy:
     dplyr::ungroup() %>%
     dplyr::select(Taxa,ISINDIGENOUS)
   
+  luTax <- luGBIF %>%
+    dplyr::left_join(luInd) %>%
+    dplyr::select(originalName,TaxaGBIF,Taxa,everything())
   
+  luTaxSimple <- luTax %>%
+    dplyr::count(key,Taxa,Kingdom,Phylum,Class,Order,Family,Genus,Species,ISINDIGENOUS) %>%
+    dplyr::select(-n)
   
+  temp <- luTaxSimple %>%
+    dplyr::filter(!is.na(Species)) %>%
+    dplyr::sample_n(10) %>%
+    dplyr::mutate(common = map2(key, Taxa, name_usage, language = "ENGLISH", data="vernacularNames")
+                  , filter = map_lgl(common, ~nrow(.$data) > 0)
+                  ) %>%
+    dplyr::filter(filter) %>%
+    dplyr::mutate(common = map_chr(common
+                                     , function(x) x[[2]] %>%
+                                       dplyr::filter(language == "eng") %>%
+                                       dplyr::count(vernacularName) %>%
+                                       dplyr::slice(1) %>%
+                                       dplyr::pull(vernacularName)
+                                     )
+                  )
   
+  write_rds(luTax,paste0(outDir,"/luTax.rds"))
   
 ```
 
@@ -464,4 +534,7 @@ A `r (gridSize/1000)^2` km^2^ grid was placed over South Australia. This grid wa
 ```
 
 `r knit(text = unlist(src))`
+
+
+<!--chapter:end:0030_report.Rmd-->
 

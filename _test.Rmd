@@ -1,0 +1,30 @@
+---
+title: "Spp Trends"
+author:
+- Department for Environment and Water
+date: "`r format(Sys.time(), '%A, %d %B, %Y')`"
+output:
+  word_document:
+    reference_docx: "common/Styles.docx"
+csl:                          "common/BibStyle.csl"
+bibliography:                 ["common/refs.bib","packageRefs.bib","datasetRefs.bib"]
+link-citations: yes
+editor_options: 
+  chunk_output_type: console
+---
+
+```{r datasetTab}
+
+  kable(refsGBIF %>%
+          dplyr::mutate(Citation = paste0("@",BIBTEXKEY)
+                        , TITLE = gsub("\\{|\\}","",TITLE)
+                        ) %>%
+          dplyr::select(Citation,Title = TITLE)
+        , caption = paste0("Datasets retrieved from GBIF "
+                           , paste0("@",refsGBIF[1,2])
+                           )
+        )
+
+```
+
+# References
