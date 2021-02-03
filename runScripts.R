@@ -4,7 +4,7 @@
   if(outName == "new") rm(list=grep("run",ls(),value=TRUE,invert = TRUE))
   
   
-  runReason <- "Testing workflow"
+  runReason <- "Added full reporting rate and list length analyses. Testing that workflow"
   
 
   library(magrittr)

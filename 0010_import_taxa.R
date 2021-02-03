@@ -61,10 +61,7 @@
     tidyr::unnest(cols = c(data)) %>%
     dplyr::mutate(SPECIES = gsub("\\s"," ",SPECIES))
   
-  sitesAll <- taxaAll %>%
-    dplyr::distinct(LATITUDE,LONGITUDE) %>%
-    st_as_sf(coords = c("LONGITUDE","LATITUDE"), crs = 4326, remove = FALSE) %>%
-    st_transform(crs = st_crs(polys))
+  
   
   #-------Taxonomy------
   taxaAll %>%

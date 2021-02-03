@@ -1,7 +1,7 @@
 
   timer$start("git")
   
-  gitMessage <- paste0(runReason," AOI for this run was ",aoiName)
+  gitMessage <- paste0(runReason," AOI for this run: ",vec_to_sentence(aoiName))
 
   if(commitToGit) {
     

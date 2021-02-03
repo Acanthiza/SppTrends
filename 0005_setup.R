@@ -9,45 +9,25 @@
   setDist <- 1000
   
   # Buffer around polyMask in METRES
-  polyBuffer <- 50000
+  polyBuffer <- 0
   
   # What is the area of interest (AOI) for this analysis?
-  aoiName <- "KI"
-  aoiFullName <- "Kangaroo Island"
+  aoiName <- c("FLB","KAN")
+  aoiFullName <- "MLR"
   Statewide <- F
   
-  # Which polygons define the AOI?
-  polyMask <- c(NULL
-                #, "Hills and Fleurieu"
-                #, "Alinytjara Wilu\u1E5Fara"
-                #, "Eyre Peninsula"
-                , "Kangaroo Island"
-                #, "Northern and Yorke"
-                #, "South Australian Arid Lands"
-                #, "Murraylands and Riverland"
-                #, "Limestone Coast"
-                #, "Green Adelaide"
-                )
-  
-  # maximium number of levels to plot
-  maxLevels <- 25
-  
   # Length of one side of grid in metres
-  gridSize <- 200
+  gridSize <- 10000
   
   minRRListLength <- 6
   minLLListLength <- 2
   minListsPerYear <- # now set as a fraction of length(unique(cell or ibrasub or whatever))
-  minTaxaOccurence <- 4
+  minTaxaOccurence <- 10
   
-  # Stan chains options
-  # quick
-  # doChains <- 4
-  # doIter <- 1000
+  maxLevels <- 30
   
-  # good
-  doChains <- 5
-  doIter <- 3000
+  minYear <- lubridate::year(Sys.time()) - 15
+  
   
   #---------Tidy-------
   # earliest and latest 'date' (= yearmon or YearMonth, i.e. 202012§)
@@ -181,7 +161,7 @@
   project <- basename(getwd())
   
   # What folder to save outputs to
-  if(!exists("outName")) outName <- paste0(format(Sys.time(),"%Y-%m-%d-%H%M"),"_",aoiName)
+  if(!exists("outName")) outName <- paste0(format(Sys.time(),"%Y-%m-%d-%H%M"),"_",aoiFullName)
   
   # Directory names
   outDir <- fs::path("out",outName)
@@ -218,23 +198,24 @@
     st_transform(crs = 3577)
   
   # Polygons
-  polys <- st_read("shp/LSA.shp"
-                   , quiet = TRUE
-                   ) %>%
-    as_tibble() %>%
-    dplyr::mutate(across(where(is.character),~gsub("Wilur|Wilu\\?",paste0("Wilu","\u1E5F"),.))) %>%
-    dplyr::left_join(luPolys) %>%
-    st_as_sf() %>%
-    st_transform(crs = 3577)
-  
-  polyPalette <- luPolys %>%
-    dplyr::mutate(colour = rgb(R,G,B,A,maxColorValue = 255)) %>%
-    dplyr::pull(colour, name = "REGION")
+  # polys <- st_read("shp/LSA.shp"
+  #                  , quiet = TRUE
+  #                  ) %>%
+  #   as_tibble() %>%
+  #   dplyr::mutate(across(where(is.character),~gsub("Wilur|Wilu\\?",paste0("Wilu","\u1E5F"),.))) %>%
+  #   dplyr::left_join(luPolys) %>%
+  #   st_as_sf() %>%
+  #   st_transform(crs = 3577)
+  # 
+  # polyPalette <- luPolys %>%
+  #   dplyr::mutate(colour = rgb(R,G,B,A,maxColorValue = 255)) %>%
+  #   dplyr::pull(colour, name = "REGION")
   
   # IBRA Sub
   ibraSub <- st_read("shp/LANDSCAPE_IbraSubregionAust70.shp") %>%
     st_transform(crs = 3577)
 
+  polys <- ibraSub
 
 #---------Parallel-----------
   
