@@ -3,159 +3,219 @@
   
   # Does an area in a year (for a taxonomic group) have enough lists?
   enoughLists <- dat %>%
-    dplyr::distinct(Class,year,geo1,geo2,cell) %>%
-    dplyr::count(Class,year,geo1,geo2,name="lists") %>%
+    dplyr::distinct(!!ensym(taxGroup),year,geo1,geo2,cell) %>%
+    dplyr::count(!!ensym(taxGroup),year,geo1,geo2,name="lists") %>%
     dplyr::filter(lists > 1)
   
   # Filter to areas*years*taxa that have enough lists
   datTemp <- dat %>%
     dplyr::inner_join(enoughLists) %>%
-    dplyr::distinct(Class,Taxa,year,geo1,geo2)
+    dplyr::distinct(!!ensym(taxGroup),Taxa,year,geo1,geo2)
   
   # Does a Taxa within an area have enough years where it appears on a list?
   enoughYears <- datTemp %>%
     dplyr::mutate(distinctYears = length(unique(.$year))
                   , thresh = 0.1*distinctYears
                   ) %>%
-    dplyr::add_count(Class,Taxa,geo1,geo2, name = "years") %>%
+    dplyr::add_count(!!ensym(taxGroup),Taxa,geo1,geo2, name = "years") %>%
     dplyr::filter(years > 0.2*distinctYears) %>%
-    dplyr::distinct(Class,Taxa,geo1,geo2)
+    dplyr::distinct(!!ensym(taxGroup),Taxa,geo1,geo2)
   
   # Does an area in a year have enough Taxa
   enoughTaxa <- datTemp %>%
     dplyr::inner_join(enoughYears) %>%
-    dplyr::count(Class,geo1,geo2,year, name = "taxas") %>%
+    dplyr::count(!!ensym(taxGroup),geo1,geo2,year, name = "taxas") %>%
     dplyr::filter(taxas > 5) %>%
-    dplyr::distinct(Class,geo1,geo2,year)
+    dplyr::distinct(!!ensym(taxGroup),geo1,geo2,year)
   
   datFilter <- dat %>%
     dplyr::inner_join(enoughYears) %>%
     dplyr::inner_join(enoughTaxa) %>%
     dplyr::filter(listLength > 1)
   
-  # trials <- datFilter %>%
-  #   dplyr::count(Class,year,geo,cell,name="listLength") %>%
-  #   dplyr::count(Class,year,geo,name="trials")
-  # 
-  # success <- datFilter %>%
-  #   dplyr::inner_join(trials) %>%
-  #   dplyr::count(Class,Taxa,year,geo,name="success")
-  # 
   taxaGeo <- datFilter %>%
-    dplyr::distinct(Class,Taxa,geo1,geo2)
+    dplyr::distinct(!!ensym(taxGroup),Taxa,geo1,geo2) %>%
+    dplyr::left_join(luTax)
   
   
   #-------RR prep---------
   
   datRR <- datFilter %>%
-    dplyr::group_by(Class,geo1,geo2,year) %>%
+    dplyr::group_by(!!ensym(taxGroup),geo1,geo2,year) %>%
     dplyr::mutate(trials = n_distinct(cell)) %>%
     dplyr::ungroup() %>%
-    dplyr::group_by(Class,geo1,geo2,year,trials,Taxa) %>%
+    dplyr::group_by(!!ensym(taxGroup),geo1,geo2,year,trials,Taxa) %>%
     dplyr::summarise(success = n()) %>%
     dplyr::ungroup() %>%
-    tidyr::pivot_wider(names_from = "Taxa", values_from = "success", values_fill = 0) %>%
-    tidyr::pivot_longer((grep("trials",names(.))+1):ncol(.),names_to = "Taxa", values_to = "success") %>%
-    dplyr::inner_join(taxaGeo) %>%
-    dplyr::mutate(prop = success/trials)
+    tidyr::nest(data = c(Taxa,success)) %>%
+    dplyr::mutate(data = future_pmap(list(data
+                                   , !!ensym(taxGroup)
+                                   , geo2
+                                   )
+                              , function(a,b,c) taxaGeo %>%
+                                dplyr::select(!!ensym(taxGroup),Taxa,geo2) %>%
+                                dplyr::filter(!!ensym(taxGroup) == b
+                                              , geo2 == c
+                                              ) %>%
+                                dplyr::left_join(a) %>%
+                                dplyr::mutate(success = if_else(is.na(success),0L,success)) %>%
+                                dplyr::select(-c(!!ensym(taxGroup),geo2))
+                              )
+                  ) %>%
+    tidyr::unnest(cols = c(data)) %>%
+    dplyr::mutate(prop = success/trials) %>%
+    dplyr::inner_join(taxaGeo)
   
   
   #------LL Prep---------------
   
   datLL <- datFilter %>%
-    # dplyr::group_by(Class,geo1,geo2) %>%
-    # dplyr::mutate(trials = n_distinct(cell)) %>%
-    # dplyr::ungroup() %>%
-    # dplyr::group_by(Class,geo1,geo2,year,trials,listLength,Taxa) %>%
-    # dplyr::summarise(success = n()) %>%
-    # dplyr::ungroup() %>%
-    tidyr::nest(data = -c(Class,geo1,geo2,year
-                          #,trials
-                          ,listLength
-                          )
-                ) %>%
-    dplyr::mutate(data = map(data
-                             ,. %>%
-                               tidyr::pivot_wider(names_from = "Taxa", values_from = "success", values_fill = 0) %>%
-                               tidyr::pivot_longer(3:ncol(.),names_to = "Taxa", values_to = "success")
-                             )
+    dplyr::group_by(!!ensym(taxGroup),geo1,geo2,year,listLength) %>%
+    dplyr::mutate(trials = n_distinct(cell)) %>%
+    dplyr::ungroup() %>%
+    dplyr::group_by(!!ensym(taxGroup),geo1,geo2,year,listLength,trials,Taxa) %>%
+    dplyr::summarise(success = n()) %>%
+    dplyr::ungroup() %>%
+    tidyr::nest(data = c(Taxa,success)) %>%
+    dplyr::mutate(data = future_pmap(list(data
+                                          , !!ensym(taxGroup)
+                                          , geo2
+                                          )
+                                     , function(a,b,c) taxaGeo %>%
+                                       dplyr::select(!!ensym(taxGroup),Taxa,geo2) %>%
+                                       dplyr::filter(!!ensym(taxGroup) == b
+                                                     , geo2 == c
+                                                     ) %>%
+                                       dplyr::left_join(a) %>%
+                                       dplyr::mutate(success = if_else(is.na(success),0L,as.integer(success))) %>%
+                                       dplyr::select(-c(!!ensym(taxGroup),geo2))
+                                     )
                   ) %>%
     tidyr::unnest(cols = c(data)) %>%
+    dplyr::mutate(prop = success/trials) %>%
     dplyr::inner_join(taxaGeo)
   
-  #--------RR explore------
   
-  Y <- "prop"
+  #------Functions--------
   
-  # variables to explore
-  varExp <- c(get("Y")
-              , colnames(datRR)
-              ) %>%
-    unique() %>%
-    grep(pattern = "medYear",invert = TRUE, value=TRUE)
-  
-  datExp <- datRR %>%
-    dplyr::select(all_of(varExp))
-  
-  #  Missing values
-  plot_missing(datExp)
-  
-  # Count discrete variables
-  ggplot(datExp %>%
-           dplyr::mutate_if(is.factor,as.character) %>%
-           dplyr::select_if(is.character) %>%
-           tidyr::gather(variable,value,1:ncol(.)) %>%
-           dplyr::group_by(variable) %>%
-           dplyr::mutate(levels = n_distinct(value)) %>%
-           dplyr::ungroup() %>%
-           dplyr::filter(levels < maxLevels)
-         ) +
-    geom_histogram(aes(value),stat="count") +
-    facet_wrap(~variable, scales = "free") +
-    theme(axis.text.x = element_text(angle = 90, vjust = 0.5, hjust=1))
-  
-  # Count continuous variables
-  ggplot(datExp %>%
-           dplyr::select_if(is.numeric) %>%
-           tidyr::gather(variable,value,1:ncol(.))
-         , aes(value)
-         ) +
-    geom_histogram() +
-    facet_wrap(~variable, scales = "free")
-  
-  # Y vs. Discrete
-  ggplot(datExp %>%
-           dplyr::mutate(UQ(rlang::sym(Y)) := factor(!!ensym(Y))) %>%
-           dplyr::mutate_if(is.factor,as.character) %>%
-           dplyr::select_if(is.character) %>%
-           dplyr::mutate(UQ(rlang::sym(Y)) := as.numeric(!!ensym(Y))) %>%
-           tidyr::gather(variable,value,2:ncol(.))
-         ) +
-    geom_boxplot(aes(value,!!ensym(Y))) +
-    facet_wrap(~variable, scales = "free") +
-    theme(axis.text.x=element_text(angle=90, vjust=0.5))
-  
-  # Y vs. Numeric
-  ggplot(datExp %>%
-           dplyr::select(varExp) %>%
-           dplyr::select_if(is.numeric) %>%
-           tidyr::gather(variable,value,2:ncol(.)) %>%
-           dplyr::arrange(!!ensym(Y))
-         , aes(value,!!ensym(Y))
-         ) +
-    geom_point(alpha = 0.5) +
-    facet_wrap(~variable, scales = "free") +
-    theme(axis.text.x=element_text(angle=90, vjust=0.5))
-  
-  #------RR model--------
-  
-  rr <- function(Taxa,rrDf) {
+  explore <- function(Taxa,Common,df,respVar,maxLevels = 30) {
     
-    print(Taxa)
+    res <- list()
+    
+    plotTitles <- bquote(~italic(.(Taxa))*":" ~ .(Common))
+    
+    Y <- respVar
+    
+    # variables to explore
+    varExp <- c(get("Y")
+                , colnames(df)
+                ) %>%
+      unique()
+    
+    datExp <- df %>%
+      dplyr::select(all_of(varExp))
+    
+    hasNumeric <- datExp %>%
+      dplyr::select(-1) %>%
+      dplyr::select(where(is.numeric)) %>%
+      ncol() %>%
+      `>` (0)
+    
+    hasCharacter <- datExp %>%
+      dplyr::select(-1) %>%
+      dplyr::mutate(across(where(is.factor),as.character)) %>%
+      dplyr::select(where(is.character)) %>%
+      ncol() %>%
+      `>` (0)
+    
+    #  Missing values
+    res$missing <- plot_missing(datExp)
+    
+    # Character variables
+    if(hasCharacter) {
+      
+      # count character
+      res$countChar <- ggplot(datExp %>%
+                              dplyr::mutate(across(where(is.factor),as.character)) %>%
+                              dplyr::select_if(is.character) %>%
+                              tidyr::gather(variable,value,1:ncol(.)) %>%
+                              dplyr::group_by(variable) %>%
+                              dplyr::mutate(levels = n_distinct(value)) %>%
+                              dplyr::ungroup() %>%
+                              dplyr::filter(levels < maxLevels)
+                            ) +
+        geom_histogram(aes(value),stat="count") +
+        facet_wrap(~variable, scales = "free") +
+        theme(axis.text.x = element_text(angle = 90, vjust = 0.5, hjust=1)) +
+        labs(title = plotTitles
+             , subtitle = "Count of levels within character variables"
+             )
+      
+      # Y vs character
+      res$YvsChar <-ggplot(datExp %>%
+                             dplyr::mutate({{Y}} := factor(!!ensym(Y))) %>%
+                             dplyr::mutate_if(is.factor,as.character) %>%
+                             dplyr::select_if(is.character) %>%
+                             dplyr::mutate({{Y}} := as.numeric(!!ensym(Y))) %>%
+                             tidyr::gather(variable,value,2:ncol(.))
+                           ) +
+        geom_boxplot(aes(value,!!ensym(Y))) +
+        facet_wrap(~variable, scales = "free") +
+        theme(axis.text.x=element_text(angle=90, vjust=0.5)) +
+        labs(title = plotTitles
+             , subtitle = paste0("Boxplots of response variable (",Y,") against character variables")
+             )
+      
+    }
+    
+    # Numeric variables
+    if(hasNumeric) {
+      
+      # Count numeric
+      res$countNum <- ggplot(datExp %>%
+                               dplyr::select(where(is.numeric)) %>%
+                               tidyr::gather(variable,value,1:ncol(.))
+                             , aes(value)
+                             ) +
+        geom_histogram() +
+        facet_wrap(~variable, scales = "free") +
+        labs(title = plotTitles
+             , subtitle = "Histograms of numeric variables"
+             )
+      
+      # Y vs. Numeric
+      res$YvsNum <- ggplot(datExp %>%
+                             dplyr::select(any_of(varExp)) %>%
+                             dplyr::select(where(is.numeric)) %>%
+                             tidyr::gather(variable,value,2:ncol(.)) %>%
+                             dplyr::arrange(!!ensym(Y))
+                           , aes(value,!!ensym(Y))
+                           ) +
+        geom_point(alpha = 0.5) +
+        facet_wrap(~variable, scales = "free") +
+        theme(axis.text.x=element_text(angle=90, vjust=0.5)) +
+        labs(title = plotTitles
+             , subtitle = paste0("Numeric variables plotted against response variable (",Y,")")
+             )
+      
+    }
+    
+    res$pairs <- ggpairs(datExp %>%
+                           dplyr::select(1,where(~n_distinct(.) < 15))
+                         ) +
+      theme(axis.text.x=element_text(angle=90, vjust=0.5))
+    
+    return(res)
+    
+  }
+  
+  rr <- function(Taxa,Common,rrDf) {
     
     res <- list()
     
     geos <- length(unique(rrDf$geo2))
+    
+    plotTitles <- bquote(~italic(.(Taxa))*":" ~ .(Common))
     
     if(geos > 1) {
       
@@ -217,18 +277,18 @@
                     ) +
         facet_grid(~geo2) +
         scale_colour_viridis_c() +
-        labs(title = bquote(~italic(.(Taxa)))
+        labs(title = plotTitles
              , subtitle = "Thick line is median credible value for that year"
              )
     
-    write_rds(res,path(outDir,paste0("reporting-rate_",Taxa,".rds")))
+    write_rds(res,fs::path(outDir,paste0("reporting-rate_",Taxa,".rds")))
     
     return(res)
     
   }
   
   
-  ll <- function(Taxa,llDf) {
+  ll <- function(Taxa,Common,llDf) {
     
     print(Taxa)
     
@@ -236,16 +296,18 @@
     
     geos <- length(unique(llDf$geo2))
     
+    plotTitles <- bquote(~italic(.(Taxa))*":" ~ .(Common))
+    
     if(geos > 1) {
       
-      res$mod <- stan_glm(success ~ year*geo2*log(listLength)
+      res$mod <- stan_glm(cbind(success,trials-success) ~ year*geo2*log(listLength)
                           , data = llDf
                           , family = binomial()
                           )
       
     } else {
       
-      res$mod <- stan_glm(success ~ year*log(listLength)
+      res$mod <- stan_glm(cbind(success,trials-success) ~ year*log(listLength)
                           , data = llDf
                           , family = binomial()
                           )
@@ -256,6 +318,8 @@
       dplyr::distinct(geo1,geo2,year) %>%
       dplyr::mutate(listLength = median(llDf$listLength)
                     , col = row.names(.)
+                    , success = 0
+                    , trials = round(median(llDf$trials),0)
                     ) %>%
       dplyr::left_join(as_tibble(posterior_predict(res$mod
                                                    , newdata = .
@@ -269,7 +333,7 @@
     res$res <- res$pred %>%
       dplyr::group_by(year,geo1,geo2,listLength) %>%
       dplyr::summarise(n = n()
-                       , nCheck = nrow(as_tibble(modLL))
+                       , nCheck = nrow(as_tibble(res$mod))
                        , modMean = mean(value)
                        , modMedian = quantile(value, 0.5)
                        , modci90lo = quantile(value, 0.05)
@@ -290,7 +354,7 @@
                        ) %>%
       dplyr::mutate(length = paste0("list length quantile ",probs," = ",listLength)) %>%
       tidybayes::add_fitted_draws(res$mod, n = 500) %>%
-      ggplot(aes(x = year, y = success)) +
+      ggplot(aes(x = year, y = prop)) +
         geom_line(aes(y = .value, group = .draw), alpha = 0.05) +
         geom_jitter(data = res$mod$data
                     , aes(colour = listLength)
@@ -299,142 +363,153 @@
                     ) +
         facet_grid(length~geo2) +
         scale_colour_viridis_c() +
-        labs(title = bquote(~italic(.(Taxa))))
+        theme(axis.text.x = element_text(angle = 90, vjust = 0.5, hjust=1)) +
+        labs(title = plotTitles)
     
-    write_rds(res,path(outDir,paste0("list-length_",Taxa,".rds")))
+    write_rds(res,fs::path(outDir,paste0("list-length_",Taxa,".rds")))
     
     return(res)
     
   }
   
+  add_residuals <- function(mod) {
+    
+    res <- list()
+    
+    #plotTitles <- bquote(~italic(.(Taxa))*":" ~ .(Common))
+    
+    res$resid <- tibble(residual = residuals(mod)
+           , fitted = fitted(mod)
+           ) %>%
+      dplyr::bind_cols(as_tibble(mod$data))
+    
+    res$residPlot <- ggplot(res$resid, aes(fitted,residual)) +
+      geom_point(size = 2) +
+      geom_hline(aes(yintercept = 0), linetype = 2, colour = "red") +
+      theme(axis.text.x = element_text(angle = 90, vjust = 0.5, hjust=1)) %>%
+      scale_colour_viridis_d(end=0.9)
+    
+    hasNumeric <- res$resid %>%
+      dplyr::select(-1) %>%
+      dplyr::select(where(is.numeric)) %>%
+      ncol() %>%
+      `>` (0)
+    
+    hasCharacter <- res$resid %>%
+      dplyr::select(-1) %>%
+      dplyr::mutate(across(where(is.factor),as.character)) %>%
+      dplyr::select(where(is.character)) %>%
+      ncol() %>%
+      `>` (0)
+    
+    
+    res$residPlotNum <- if(hasNumeric) {
+      
+      ggplot(res$resid %>%
+               dplyr::select_if(is.numeric) %>%
+               tidyr::pivot_longer(2:ncol(.))
+             , aes(value,residual)
+             ) +
+        geom_point(size = 2) +
+        geom_smooth(method = "lm")  +
+        geom_hline(aes(yintercept = 0), linetype = 2, colour = "red") +
+        facet_wrap(~name
+                   , scales = "free_x"
+                   ) +
+        theme(axis.text.x = element_text(angle = 90, vjust = 0.5, hjust=1)) +
+        scale_colour_viridis_d()
+      
+    } else NULL
+    
+    res$residPlotChar <- if(hasCharacter) {
+      
+      ggplot(res$resid %>%
+               dplyr::mutate(across(where(is.factor),as.character)) %>%
+               dplyr::select(1,where(is.character)) %>%
+               tidyr::pivot_longer(2:ncol(.))
+             , aes(value,residual)
+             ) +
+        geom_boxplot() +
+        geom_hline(aes(yintercept = 0), linetype = 2, colour = "red") +
+        facet_wrap(~name, scales = "free") +
+        theme(axis.text.x = element_text(angle = 90, vjust = 0.5, hjust=1))
+      
+    } else NULL
+    
+    return(res)
+    
+  }
   
-  taxaRes <- datRR %>%
+ year_diff <- function(pred) {
+    
+   groups <- c("year","success","trials","listLength","Someoftherrandomgroup")
+   
+   df <- pred %>%
+     dplyr::group_by(across(any_of(groups))) %>%
+      dplyr::summarise(medValue = median(value))
+  
+  }
+    
+  
+ 
+ #------Run models-------
+  
+  taxaMods <- datRR %>%
     tidyr::nest(dataRR = c(geo1,geo2,year,success,trials,prop)) %>%
     dplyr::left_join(datLL %>%
-                       tidyr::nest(dataLL = c(geo1,geo2,year,success,listLength,cell,list))
+                       tidyr::nest(dataLL = c(geo1,geo2,year,success,trials,listLength,prop))
                      ) %>%
-    dplyr::sample_n(5) %>% # TESTING
-    dplyr::mutate(rr = future_map2(Taxa,dataRR,rr)
-                  , ll = future_map2(Taxa,dataLL,ll)
+    purrr::when(testing ~ (.) %>% dplyr::sample_n(3)
+                , !testing ~ (.)
+                ) %>%
+    dplyr::mutate(rrExp = future_pmap(list(Taxa
+                                           , Common
+                                           , dataRR
+                                           ,"prop"
+                                           ,30
+                                           )
+                                      ,explore
+                                      )
+                  , llExp = future_pmap(list(Taxa
+                                             , Common
+                                             , dataLL
+                                             ,"success"
+                                             ,30
+                                             )
+                                        ,explore
+                                        )
+                  , rr = future_pmap(list(Taxa
+                                          ,Common
+                                          ,dataRR
+                                          )
+                                     ,rr
+                                     )
+                  , ll = future_pmap(list(Taxa
+                                          ,Common
+                                          ,dataLL
+                                          )
+                                     ,ll
+                                     )
+                  , rrResid = map(rr,~add_residuals(.$mod))
+                  , llResid = map(ll,~add_residuals(.$mod))
+                  #, rrYearEff = map(rr,~.$mod %>% make_posterior_year_effect_df)
+                  #, llYearEff = map(ll,~.$mod %>% make_posterior_year_effect_df)
                   )
+ 
   
-  
-  
-  
-  #------Residuals--------
-  
-  modResid <- tibble(residual = residuals(modRR)
-                     , fitted = fitted(modRR)
+  taxaRes <- taxaMods %>%
+    tidyr::unnest(cols = rrYearEff) %>%
+    dplyr::select(where(Negate(is.list))) %>%
+    dplyr::mutate(type = "rr") %>%
+    dplyr::bind_rows(taxaMods %>%
+                       tidyr::unnest(cols = llYearEff) %>%
+                       dplyr::select(where(Negate(is.list))) %>%
+                       dplyr::mutate(type = "ll")
                      ) %>%
-    dplyr::bind_cols(as_tibble(modRR$data))
-  
-  
-  # Y vs. residuals
-  ggplot(modResid, aes(fitted,residual)) +
-    geom_point(size = 2) +
-    geom_hline(aes(yintercept = 0), linetype = 2, colour = "red") +
-    theme(axis.text.x = element_text(angle = 90, vjust = 0.5, hjust=1)) %>%
-    scale_colour_viridis_d(end=0.9)
-  
-  # Time vs. residuals
-  ggplot(modResid %>%
-           dplyr::select_if(is.numeric) %>%
-           tidyr::gather(variable,value,2:ncol(.))
-         , aes(value,residual)
-         ) +
-    geom_point(size = 2) +
-    geom_smooth(method = "lm") +
-    facet_wrap(~variable
-               , scales = "free_x"
-               ) +
-    theme(axis.text.x = element_text(angle = 90, vjust = 0.5, hjust=1)) +
-    scale_colour_viridis_d()
-  
-  
-  
-    
-  
-  #-----TESTING--------
-  
-  test <- datLL %>%
-    dplyr::filter(grepl(paste0(testSpp,collapse="|"),Taxa)) %>%
-    dplyr::mutate(geo2 = fct_reorder(geo2,-success,mean))
-  
-  ggplot(test,aes(year
-                  ,success
-                  , colour = listLength
-                  )
-         ) +
-    geom_jitter(height = 0.0005
-                ,width = 0.005
-                ,alpha = 0.5
-                #,aes(colour=geo2)
-                ) +
-    geom_smooth() +
-    facet_grid(~geo2)
-  
-  
-  #-------LL model---------
-  
-  modLL <- stan_glm(success ~ year*geo2*log(listLength)
-                    , data = test
-                    , family = binomial()
-                    )
-  
-  modPredLL <- as_tibble(modLL$data) %>%
-    dplyr::distinct(Taxa,year,geo1,geo2) %>%
-    dplyr::mutate(listLength = median(datLL$listLength)
-                  , col = row.names(.)
-                  ) %>%
-    dplyr::left_join(as_tibble(posterior_predict(modLL
-                                                 , newdata = .
-                                                 , re.form = insight::find_formula(modLL)$random
-                                                 )
-                               ) %>%
-                       tibble::rownames_to_column(var = "row") %>%
-                       tidyr::gather(col,value,2:ncol(.))
-                     )
-  
-  modResLL <- modPredLL %>%
-    dplyr::group_by(Taxa,year,geo1,geo2,listLength) %>%
-    dplyr::summarise(n = n()
-                     , nCheck = nrow(as_tibble(modLL))
-                     , modMean = mean(value)
-                     , modMedian = quantile(value, 0.5)
-                     , modci90lo = quantile(value, 0.05)
-                     , modci90up = quantile(value, 0.95)
-                     , text = paste0(round(modMedian,2)," (",round(modci90lo,2)," to ",round(modci90up,2),")")
+    dplyr::group_by(!!ensym(taxGroup),Taxa,Common,geo2,type) %>%
+    dplyr::summarise(meanYear = mean(year)
+                     , medianYear = median(year)
+                     , ciup = quantile(year, probs = 0.95)
+                     , cilo = quantile(year, probs = 0.05)
                      ) %>%
     dplyr::ungroup()
-  
-  
-  
-  modLL$data %>%
-    dplyr::distinct(Taxa,year,geo2) %>%
-    dplyr::full_join(tibble(probs = c(0.05
-                                      , 0.5
-                                      , 0.95
-                                      )
-                            ) %>%
-                       dplyr::mutate(listLength = map_dbl(probs,~quantile(modLL$data$listLength,probs = .)))
-                     , by = character()
-                     ) %>%
-    dplyr::mutate(length = paste0("list length quantile ",probs," = ",listLength)) %>%
-    tidybayes::add_fitted_draws(modLL, n = 200) %>%
-    ggplot(aes(x = year, y = success)) +
-      # tidybayes::stat_lineribbon(aes(y = .value)
-      #                            , .width = c(.999, .95, .8, .5)
-      #                            , alpha = 0.5
-      #                            ) +
-      geom_line(aes(y = .value, group = .draw), alpha = 0.05) +
-      geom_jitter(data = modLL$data
-                  , aes(colour = listLength)
-                  , alpha = 0.01
-                  , height = 0.025
-                  , width = 0.2
-                  ) +
-      facet_grid(length~geo2)
-
-    
-
-  

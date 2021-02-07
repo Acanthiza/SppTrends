@@ -1017,7 +1017,7 @@ ah2sp <- function(x, increment=360, rnd=10, proj4string=CRS(as.character(NA)),to
                             , ~family
                             , ~genus
                             , ~species
-                            , ~common
+                            #, ~common
                             , ~kingdomKey
                             , ~phylumKey
                             , ~classKey
@@ -1055,18 +1055,6 @@ ah2sp <- function(x, increment=360, rnd=10, proj4string=CRS(as.character(NA)),to
         } else {
           taxGBIF
         }
-        
-        comGBIF <- name_usage(taxGBIF$usageKey, data="vernacularNames")$data
-        
-        taxGBIF[["common"]] <- if(nrow(comGBIF) > 0) {
-          
-          comGBIF %>%
-            dplyr::count(vernacularName) %>%
-            dplyr::arrange(desc(n)) %>%
-            dplyr::slice(1) %>%
-            dplyr::pull(vernacularName)
-          
-        } else ""
         
         res <- resStructure %>%
           dplyr::bind_rows(
@@ -1141,7 +1129,7 @@ ah2sp <- function(x, increment=360, rnd=10, proj4string=CRS(as.character(NA)),to
                       , Family = family
                       , Genus = genus
                       , Species = species
-                      , Common = common
+                      #, Common = common
                       , scientificName
                       , canonicalName
                       , Status = status
@@ -1174,6 +1162,82 @@ ah2sp <- function(x, increment=360, rnd=10, proj4string=CRS(as.character(NA)),to
       {warning( "No taxa supplied" ) }
       
     }
+    
+  }
+  
+  # Add common name to dataframe of GBIF taxonomy (requires 'useagekey')
+  
+  add_gbif_common <- function(path = "data/luGBIF.feather") {
+    
+    get_common <- function(key) {
+      
+      print(key)
+      
+      commonNames <- name_usage(key)$data %>%
+        dplyr::select(contains("Key")) %>%
+        dplyr::select(where(is.numeric)) %>%
+        tidyr::pivot_longer(1:ncol(.),names_to = "key") %>%
+        dplyr::mutate(key = map_chr(key,~gsub("Key","",.))
+                      , key = str_to_sentence(key)
+                      ) %>%
+        dplyr::filter(key %in% luRank$Rank) %>%
+        dplyr::left_join(luRank, by = c("key" = "Rank")) %>%
+        dplyr::filter(sort == max(sort)) %>%
+        dplyr::pull(value) %>%
+        name_usage(data="vernacularNames")
+      
+      df <- commonNames$data %>%
+        dplyr::select(any_of(c("vernacularName","language","preferred")))
+      
+      hasAny <- nrow(df) > 0
+      hasPreferred <- if("preferred" %in% names(df)) sum(df$preferred, na.rm = TRUE) > 0 else FALSE
+      hasPreferredEng <- if(hasPreferred) df %>%
+        dplyr::filter(preferred) %>%
+        dplyr::filter(language == "eng") %>%
+        nrow() %>%
+        `>` (0) else FALSE
+      
+      if(hasPreferredEng) {
+        
+        df %>%
+          dplyr::filter(preferred
+                        , language == "eng"
+                        ) %>%
+          dplyr::pull(vernacularName) %>%
+          `[` (1)
+        
+      } else if(hasPreferred) {
+        
+        df %>%
+          dplyr::filter(preferred) %>%
+          dplyr::count(language,vernacularName) %>%
+          dplyr::arrange(desc(n)
+                         , language
+                         ) %>%
+          dplyr::slice(1) %>%
+          dplyr::pull(vernacularName) %>%
+          `[` (1)
+        
+      } else if(hasAny) {
+        
+        df %>%
+          dplyr::count(language,vernacularName) %>%
+          dplyr::arrange(desc(n)
+                         , language
+                         ) %>%
+          dplyr::slice(1) %>%
+          dplyr::pull(vernacularName) %>%
+          `[` (1)
+        
+      } else ""
+      
+    }
+    
+    gbifTaxDf <- read_feather(path) %>%
+      #(if(testing) {. %>% dplyr::sample_n(5)} else {.}) %>%
+      dplyr::mutate(Common = future_map_chr(key,get_common))
+    
+    write_feather(gbifTaxDf,path)
     
   }
   

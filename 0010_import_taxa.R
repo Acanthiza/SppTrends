@@ -80,7 +80,7 @@
                   )
   
   luTax <- luGBIF %>%
-    dplyr::distinct(Taxa,Class)
+    dplyr::distinct(Taxa,Common,Kingdom,Phylum,Class,Order,Family,Genus,Species)
   
   luInd <- taxaBDBSA %>%
     dplyr::left_join(luGBIF, by = c("SPECIES" = "id")) %>%

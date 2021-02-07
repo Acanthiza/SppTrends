@@ -16,15 +16,16 @@
   aoiFullName <- "MLR"
   Statewide <- F
   
+  # Taxonomic grouping
+  taxGroup <- "Order"
+  
   # Length of one side of grid in metres
-  gridSize <- 10000
+  gridSize <- 5000
   
   minRRListLength <- 6
   minLLListLength <- 2
   minListsPerYear <- # now set as a fraction of length(unique(cell or ibrasub or whatever))
   minTaxaOccurence <- 10
-  
-  maxLevels <- 30
   
   minYear <- lubridate::year(Sys.time()) - 15
   
@@ -186,6 +187,20 @@
     dplyr::mutate(across(where(is.character),~gsub("Wilur|Wilu\\?",paste0("Wilu","\u1E5F"),.)))
   
   luRel <- read_csv("data/luReliability.csv")
+  
+  luRank <- tribble(
+    ~Rank, ~sort
+    , "Kingdom", 1
+    , "Phylum", 2
+    , "Class", 3
+    , "Order", 4
+    , "Family", 5
+    , "Genus", 6
+    , "Species", 7
+    , "Subspecies", 8
+    , "Variety", 9
+    , "Form", 10
+  )
 
 #----------Maps-----------
   

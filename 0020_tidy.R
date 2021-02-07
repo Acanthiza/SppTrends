@@ -28,9 +28,10 @@
   #-------Taxonomy-------
   
   taxaAllDatesAOITax <- taxaAllDatesAOI %>%
-    dplyr::left_join(luGBIF[,c("id","Taxa","Rank","Class")], by = c("SPECIES" = "id")) %>%
+    dplyr::left_join(luGBIF[,c("id","Taxa","Rank")], by = c("SPECIES" = "id")) %>%
     dplyr::filter(Rank > "Genus") %>%
-    dplyr::count(Class,Taxa,LATITUDE,LONGITUDE,year,name="siteRecords")
+    dplyr::count(Taxa,LATITUDE,LONGITUDE,year,name="siteRecords") %>%
+    dplyr::left_join(luTax)
   
   #-------Add geo context-------
   
@@ -64,8 +65,8 @@
   
   taxaAllDatesAOITaxGeo <- taxaAllDatesAOITax %>%
     dplyr::inner_join(patchGeoContext) %>%
-    dplyr::distinct(Class,Taxa,year,geo1,geo2,cell) %>%
-    dplyr::mutate(list = paste0(year,"-",Class,"-",cell))
+    dplyr::distinct(!!ensym(taxGroup),Taxa,year,geo1,geo2,cell) %>%
+    dplyr::mutate(list = paste0(year,"-",!!ensym(taxGroup),"-",cell))
   
   
   #------dat--------

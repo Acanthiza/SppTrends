@@ -1,20 +1,20 @@
 
-  outName <- "new"
+  outName <- "2021-02-04-0653_MLR"
     
   if(outName == "new") rm(list=grep("run",ls(),value=TRUE,invert = TRUE))
   
   
-  runReason <- "Added full reporting rate and list length analyses. Testing that workflow"
+  runReason <- "First attempt to run all taxa through rr and ll."
   
 
   library(magrittr)
   
   runFrom <- 0
-  runTo <- 60
+  runTo <- 30
   
-  testing <- TRUE
+  testing <- F
   testRmd <- FALSE
-  commitToGit <- TRUE
+  commitToGit <- F
   
   getNewData <- FALSE
   
