@@ -462,26 +462,105 @@
     
   }
   
- year_diff <- function(pred) {
+  year_effect <- function(mod) {
     
-   groups <- c("year","success","trials","listLength","Someoftherrandomgroup")
+   geos <- length(unique(mod$data$geo2))
    
-   df <- pred %>%
-     dplyr::group_by(across(any_of(groups))) %>%
-      dplyr::summarise(medValue = median(value))
+   geosNames <- unique(mod$data$geo2)
+   
+   atLevel <- median(mod$data$listLength)
+   
+   reference <- setdiff(unique(mod$data$geo2)
+                        , str_extract(names(as_tibble(mod)),paste0(geosNames,collapse="|"))
+                        )
+   
+   resRef <- as_tibble(mod) %>%
+     dplyr::select(contains("year")) %>%
+     dplyr::select(grep(paste0(geosNames,collapse="|"),names(.),value=TRUE,invert = TRUE)) %>%
+     dplyr::rowwise() %>%
+     dplyr::mutate(geo2 = reference
+                   , across(grep("log",names(.)),~log(atLevel)*.)
+                   , yearEff = sum(across(where(is.double)))
+                   ) %>%
+     dplyr::ungroup()
+   
+   if(geos > 1) {
+     
+     resNotRef <- as_tibble(mod) %>%
+       dplyr::select(contains("year")) %>%
+       dplyr::mutate(across(grep("log",names(.))
+                            ,~log(atLevel)*.
+                            )
+                     , generic = resRef$yearEff
+                     ) %>%
+       dplyr::select(any_of(c("generic",grep(paste0(geosNames,collapse="|"),names(.),value=TRUE)))) %>%
+       tidyr::pivot_longer(2:ncol(.)) %>%
+       dplyr::mutate(geo2 = str_extract(name,paste0(geosNames,collapse="|"))
+                     , term = gsub(paste0(geosNames,collapse="|"),"",name)
+                     ) %>%
+       dplyr::select(-name) %>%
+       tidyr::pivot_wider(names_from = "term", values_from = "value") %>%
+       dplyr::rowwise() %>%
+       dplyr::mutate(yearEff = sum(across(where(is.double)))) %>%
+       dplyr::ungroup()
+     
+   }
+   
+   res <- resRef %>%
+     purrr::when(geos > 1 ~ (.) %>% dplyr::bind_rows(resNotRef)
+                 , geos == 1 ~ (.)
+                 ) %>%
+     dplyr::select(geo2,yearEff) %>%
+     dplyr::group_by(geo2) %>%
+     dplyr::summarise(n = n()
+                      , nCheck = nrow(as_tibble(mod))
+                      , increasing = sum(yearEff > 0)/nCheck
+                      , decreasing = sum(yearEff < 0)/nCheck
+                      , meanEff = mean(yearEff)
+                      , medianEff = median(yearEff)
+                      , cilo = quantile(yearEff, probs = 0.05)
+                      , ciup = quantile(yearEff, probs = 0.95)
+                      ) %>%
+     dplyr::mutate(likelihood = map(decreasing
+                                    , ~cut(.
+                                           , breaks = c(0,luLikelihood$maxVal)
+                                           , labels = luLikelihood$likelihood
+                                           )
+                                    )
+                   ) %>%
+     tidyr::unnest(cols = c(likelihood)) %>%
+     dplyr::mutate(text = paste0(tolower(likelihood)
+                                 , " to be decreasing ("
+                                 , 100*round(decreasing,2)
+                                 , "% chance)"
+                                 )
+                   )
+   
+   return(res)
   
   }
     
   
  
  #------Run models-------
+ 
+  tests <- c("Melithreptus"
+             , "Iridomyrmex"
+             , "Chloris"
+             , "Cacatua"
+             , "Myiagra"
+             , "Pseudonaja"
+             , "Pogona"
+            , "Vespadelus"
+             )
+ 
   
   taxaModsRR <- datRR %>%
     tidyr::nest(dataRR = c(geo1,geo2,year,success,trials,prop)) %>%
     dplyr::left_join(datLL %>%
                        tidyr::nest(dataLL = c(geo1,geo2,year,success,trials,listLength,prop))
                      ) %>%
-    purrr::when(testing ~ (.) %>% dplyr::sample_n(3)
+    purrr::when(testing ~ (.) %>% dplyr::filter(grepl(paste0(tests,collapse="|"),Taxa))
                 , !testing ~ (.)
                 ) %>%
     dplyr::mutate(rr = future_pmap(list(Taxa
@@ -502,7 +581,7 @@
                    )
  
    taxaModsFull <- taxaModsRRLL %>%
-     dplyr::mutate(rrExp = future_pmap(list(Taxa
+     dplyr::mutate(rrExp = pmap(list(Taxa
                                             , Common
                                             , dataRR
                                             ,"prop"
@@ -510,7 +589,7 @@
                                             )
                                        ,explore
                                        )
-                  , llExp = future_pmap(list(Taxa
+                  , llExp = pmap(list(Taxa
                                              , Common
                                              , dataLL
                                              ,"success"
@@ -520,24 +599,6 @@
                                         )
                   , rrResid = map(rr,~add_residuals(.$mod))
                   , llResid = map(ll,~add_residuals(.$mod))
-                  #, rrYearEff = map(rr,~.$mod %>% make_posterior_year_effect_df)
-                  #, llYearEff = map(ll,~.$mod %>% make_posterior_year_effect_df)
+                  , rrYearEff = map(rr,~.$mod %>% year_effect)
+                  , llYearEff = map(ll,~.$mod %>% year_effect)
                   )
- 
-  
-  taxaRes <- taxaMods %>%
-    tidyr::unnest(cols = rrYearEff) %>%
-    dplyr::select(where(Negate(is.list))) %>%
-    dplyr::mutate(type = "rr") %>%
-    dplyr::bind_rows(taxaMods %>%
-                       tidyr::unnest(cols = llYearEff) %>%
-                       dplyr::select(where(Negate(is.list))) %>%
-                       dplyr::mutate(type = "ll")
-                     ) %>%
-    dplyr::group_by(!!ensym(taxGroup),Taxa,Common,geo2,type) %>%
-    dplyr::summarise(meanYear = mean(year)
-                     , medianYear = median(year)
-                     , ciup = quantile(year, probs = 0.95)
-                     , cilo = quantile(year, probs = 0.05)
-                     ) %>%
-    dplyr::ungroup()

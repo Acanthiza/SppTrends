@@ -1,5 +1,5 @@
 
-  outName <- "new"
+  outName <- "2021-02-07-1313_MLR"
     
   if(outName == "new") rm(list=grep("run",ls(),value=TRUE,invert = TRUE))
   

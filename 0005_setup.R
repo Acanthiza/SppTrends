@@ -201,6 +201,24 @@
     , "Variety", 9
     , "Form", 10
   )
+  
+  luLikelihood <- tribble(
+    ~likelihood, ~maxVal
+    , "Exceptionally unlikely", 0.01
+    , "Extremely unlikely", 0.05
+    , "Very unlikely", 0.1
+    , "Unlikely", 1/3
+    , "About as likely as not", 2/3
+    , "Likely", 0.9
+    , "Very likely", 0.95
+    , "Extremely likely", 0.99
+    , "Virtually certain", 1
+    ) %>%
+    dplyr::mutate(likelihood = fct_inorder(likelihood)
+                  , range = cut(maxVal
+                                   , breaks = c(0,.$maxVal)
+                                   )
+                  )
 
 #----------Maps-----------
   
