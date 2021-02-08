@@ -211,79 +211,91 @@
   
   rr <- function(Taxa,Common,rrDf) {
     
-    res <- list()
+    print(Taxa)
     
-    geos <- length(unique(rrDf$geo2))
+    outFile <- fs::path(outDir,paste0("reporting-rate_",Taxa,".rds"))
     
-    plotTitles <- bquote(~italic(.(Taxa))*":" ~ .(Common))
-    
-    if(geos > 1) {
+    if(file.exists(outFile)) {
       
-      res$mod <- stan_glm(cbind(success,trials-success) ~ year*geo2
-                      , data = rrDf
-                      , family = binomial()
-                      )
+      read_rds(outFile)
       
     } else {
       
-      res$mod <- stan_glm(cbind(success,trials-success) ~ year
+      res <- list()
+    
+      geos <- length(unique(rrDf$geo2))
+      
+      plotTitles <- bquote(~italic(.(Taxa))*":" ~ .(Common))
+      
+      if(geos > 1) {
+        
+        res$mod <- stan_glm(cbind(success,trials-success) ~ year*geo2
                         , data = rrDf
                         , family = binomial()
                         )
-      
-      }
-    
-    res$pred <- as_tibble(res$mod$data) %>%
-      dplyr::distinct(year,geo1,geo2) %>%
-      dplyr::mutate(col = row.names(.)
-                    , success = 0
-                    , trials = round(median(res$mod$data$trials),0)
-                    ) %>%
-      dplyr::left_join(as_tibble(posterior_predict(res$mod
-                                                   , newdata = .
-                                                   , re.form = NA#insight::find_formula(res$mod)$random[[1]]
-                                                   )
-                                 ) %>%
-                         tibble::rownames_to_column(var = "row") %>%
-                         tidyr::gather(col,value,2:ncol(.))
-                       ) %>%
-      dplyr::mutate(rawValue = as.numeric(value)
-                    , value = rawValue/trials
-                    )
-    
-    res$res <- res$pred %>%
-      dplyr::group_by(year,geo1,geo2) %>%
-      dplyr::summarise(modMean = mean(value)
-                       , modMedian = quantile(value, 0.5)
-                       , modci90lo = quantile(value, 0.05)
-                       , modci90up = quantile(value, 0.95)
-                       , text = paste0(round(modMedian,2)," (",round(modci90lo,2)," to ",round(modci90up,2),")")
-                       ) %>%
-      dplyr::ungroup()
-    
-    res$plot <- res$mod$data %>%
-      dplyr::distinct(year,geo2) %>%
-      tidybayes::add_fitted_draws(res$mod, n = 500) %>%
-      ggplot(aes(x = year)) +
-        geom_line(aes(y = .value, group = .draw), alpha = 0.05) +
-        geom_line(data = res$res
-                  , aes(y = modMean)
-                  , size = 2
-                  ) +
-        geom_point(data = res$mod$data
-                    , aes(y = prop
-                          , colour = trials
+        
+      } else {
+        
+        res$mod <- stan_glm(cbind(success,trials-success) ~ year
+                          , data = rrDf
+                          , family = binomial()
                           )
+        
+        }
+      
+      res$pred <- as_tibble(res$mod$data) %>%
+        dplyr::distinct(year,geo1,geo2) %>%
+        dplyr::mutate(col = row.names(.)
+                      , success = 0
+                      , trials = round(median(res$mod$data$trials),0)
+                      ) %>%
+        dplyr::left_join(as_tibble(posterior_predict(res$mod
+                                                     , newdata = .
+                                                     , re.form = NA#insight::find_formula(res$mod)$random[[1]]
+                                                     )
+                                   ) %>%
+                           tibble::rownames_to_column(var = "row") %>%
+                           tidyr::gather(col,value,2:ncol(.))
+                         ) %>%
+        dplyr::mutate(rawValue = as.numeric(value)
+                      , value = rawValue/trials
+                      )
+      
+      res$res <- res$pred %>%
+        dplyr::group_by(year,geo1,geo2) %>%
+        dplyr::summarise(modMean = mean(value)
+                         , modMedian = quantile(value, 0.5)
+                         , modci90lo = quantile(value, 0.05)
+                         , modci90up = quantile(value, 0.95)
+                         , text = paste0(round(modMedian,2)," (",round(modci90lo,2)," to ",round(modci90up,2),")")
+                         ) %>%
+        dplyr::ungroup()
+      
+      res$plot <- res$mod$data %>%
+        dplyr::distinct(year,geo2) %>%
+        tidybayes::add_fitted_draws(res$mod, n = 500) %>%
+        ggplot(aes(x = year)) +
+          geom_line(aes(y = .value, group = .draw), alpha = 0.05) +
+          geom_line(data = res$res
+                    , aes(y = modMean)
+                    , size = 2
                     ) +
-        facet_grid(~geo2) +
-        scale_colour_viridis_c() +
-        labs(title = plotTitles
-             , subtitle = "Thick line is median credible value for that year"
-             )
-    
-    write_rds(res,fs::path(outDir,paste0("reporting-rate_",Taxa,".rds")))
-    
-    return(res)
+          geom_point(data = res$mod$data
+                      , aes(y = prop
+                            , colour = trials
+                            )
+                      ) +
+          facet_grid(~geo2) +
+          scale_colour_viridis_c() +
+          labs(title = plotTitles
+               , subtitle = "Thick line is median credible value for that year"
+               )
+      
+      write_rds(res,outFile)
+      
+      return(res)
+      
+    }
     
   }
   
@@ -292,83 +304,93 @@
     
     print(Taxa)
     
-    res <- list()
+    outFile <- fs::path(outDir,paste0("list-length_",Taxa,".rds"))
     
-    geos <- length(unique(llDf$geo2))
-    
-    plotTitles <- bquote(~italic(.(Taxa))*":" ~ .(Common))
-    
-    if(geos > 1) {
+    if(file.exists(outFile)) {
       
-      res$mod <- stan_glm(cbind(success,trials-success) ~ year*geo2*log(listLength)
-                          , data = llDf
-                          , family = binomial()
-                          )
+      read_rds(outFile)
       
     } else {
+    
+      res <- list()
       
-      res$mod <- stan_glm(cbind(success,trials-success) ~ year*log(listLength)
-                          , data = llDf
-                          , family = binomial()
-                          )
+      geos <- length(unique(llDf$geo2))
+      
+      plotTitles <- bquote(~italic(.(Taxa))*":" ~ .(Common))
+      
+      if(geos > 1) {
+        
+        res$mod <- stan_glm(cbind(success,trials-success) ~ year*geo2*log(listLength)
+                            , data = llDf
+                            , family = binomial()
+                            )
+        
+      } else {
+        
+        res$mod <- stan_glm(cbind(success,trials-success) ~ year*log(listLength)
+                            , data = llDf
+                            , family = binomial()
+                            )
+        
+      }
+      
+      res$pred <- res$mod$data %>%
+        dplyr::distinct(geo1,geo2,year) %>%
+        dplyr::mutate(listLength = median(llDf$listLength)
+                      , col = row.names(.)
+                      , success = 0
+                      , trials = round(median(llDf$trials),0)
+                      ) %>%
+        dplyr::left_join(as_tibble(posterior_predict(res$mod
+                                                     , newdata = .
+                                                     , re.form = insight::find_formula(res$mod)$random
+                                                     )
+                                   ) %>%
+                           tibble::rownames_to_column(var = "row") %>%
+                           tidyr::gather(col,value,2:ncol(.))
+                         )
+      
+      res$res <- res$pred %>%
+        dplyr::group_by(year,geo1,geo2,listLength) %>%
+        dplyr::summarise(n = n()
+                         , nCheck = nrow(as_tibble(res$mod))
+                         , modMean = mean(value)
+                         , modMedian = quantile(value, 0.5)
+                         , modci90lo = quantile(value, 0.05)
+                         , modci90up = quantile(value, 0.95)
+                         , text = paste0(round(modMedian,2)," (",round(modci90lo,2)," to ",round(modci90up,2),")")
+                         ) %>%
+        dplyr::ungroup()
+      
+      res$plot <- res$mod$data %>%
+        dplyr::distinct(year,geo2) %>%
+        dplyr::full_join(tibble(probs = c(0.05
+                                          , 0.5
+                                          , 0.95
+                                          )
+                                ) %>%
+                           dplyr::mutate(listLength = map_dbl(probs,~quantile(res$mod$data$listLength,probs = .)))
+                         , by = character()
+                         ) %>%
+        dplyr::mutate(length = paste0("list length quantile ",probs," = ",listLength)) %>%
+        tidybayes::add_fitted_draws(res$mod, n = 500) %>%
+        ggplot(aes(x = year, y = prop)) +
+          geom_line(aes(y = .value, group = .draw), alpha = 0.05) +
+          geom_jitter(data = res$mod$data
+                      , aes(colour = listLength)
+                      , height = 0.025
+                      , width = 0.2
+                      ) +
+          facet_grid(length~geo2) +
+          scale_colour_viridis_c() +
+          theme(axis.text.x = element_text(angle = 90, vjust = 0.5, hjust=1)) +
+          labs(title = plotTitles)
+      
+      write_rds(res,outFile)
+      
+      return(res)
       
     }
-    
-    res$pred <- res$mod$data %>%
-      dplyr::distinct(geo1,geo2,year) %>%
-      dplyr::mutate(listLength = median(llDf$listLength)
-                    , col = row.names(.)
-                    , success = 0
-                    , trials = round(median(llDf$trials),0)
-                    ) %>%
-      dplyr::left_join(as_tibble(posterior_predict(res$mod
-                                                   , newdata = .
-                                                   , re.form = insight::find_formula(res$mod)$random
-                                                   )
-                                 ) %>%
-                         tibble::rownames_to_column(var = "row") %>%
-                         tidyr::gather(col,value,2:ncol(.))
-                       )
-    
-    res$res <- res$pred %>%
-      dplyr::group_by(year,geo1,geo2,listLength) %>%
-      dplyr::summarise(n = n()
-                       , nCheck = nrow(as_tibble(res$mod))
-                       , modMean = mean(value)
-                       , modMedian = quantile(value, 0.5)
-                       , modci90lo = quantile(value, 0.05)
-                       , modci90up = quantile(value, 0.95)
-                       , text = paste0(round(modMedian,2)," (",round(modci90lo,2)," to ",round(modci90up,2),")")
-                       ) %>%
-      dplyr::ungroup()
-    
-    res$plot <- res$mod$data %>%
-      dplyr::distinct(year,geo2) %>%
-      dplyr::full_join(tibble(probs = c(0.05
-                                        , 0.5
-                                        , 0.95
-                                        )
-                              ) %>%
-                         dplyr::mutate(listLength = map_dbl(probs,~quantile(res$mod$data$listLength,probs = .)))
-                       , by = character()
-                       ) %>%
-      dplyr::mutate(length = paste0("list length quantile ",probs," = ",listLength)) %>%
-      tidybayes::add_fitted_draws(res$mod, n = 500) %>%
-      ggplot(aes(x = year, y = prop)) +
-        geom_line(aes(y = .value, group = .draw), alpha = 0.05) +
-        geom_jitter(data = res$mod$data
-                    , aes(colour = listLength)
-                    , height = 0.025
-                    , width = 0.2
-                    ) +
-        facet_grid(length~geo2) +
-        scale_colour_viridis_c() +
-        theme(axis.text.x = element_text(angle = 90, vjust = 0.5, hjust=1)) +
-        labs(title = plotTitles)
-    
-    write_rds(res,fs::path(outDir,paste0("list-length_",Taxa,".rds")))
-    
-    return(res)
     
   }
   
@@ -454,7 +476,7 @@
  
  #------Run models-------
   
-  taxaMods <- datRR %>%
+  taxaModsRR <- datRR %>%
     tidyr::nest(dataRR = c(geo1,geo2,year,success,trials,prop)) %>%
     dplyr::left_join(datLL %>%
                        tidyr::nest(dataLL = c(geo1,geo2,year,success,trials,listLength,prop))
@@ -462,14 +484,32 @@
     purrr::when(testing ~ (.) %>% dplyr::sample_n(3)
                 , !testing ~ (.)
                 ) %>%
-    dplyr::mutate(rrExp = future_pmap(list(Taxa
-                                           , Common
-                                           , dataRR
-                                           ,"prop"
-                                           ,30
-                                           )
-                                      ,explore
-                                      )
+    dplyr::mutate(rr = future_pmap(list(Taxa
+                                          ,Common
+                                          ,dataRR
+                                          )
+                                     ,rr
+                                     )
+                  )
+ 
+   taxaModsRRLL <- taxaModsRR %>%
+     dplyr::mutate(ll = future_pmap(list(Taxa
+                                            ,Common
+                                            ,dataLL
+                                            )
+                                       ,ll
+                                       )
+                   )
+ 
+   taxaModsFull <- taxaModsRRLL %>%
+     dplyr::mutate(rrExp = future_pmap(list(Taxa
+                                            , Common
+                                            , dataRR
+                                            ,"prop"
+                                            ,30
+                                            )
+                                       ,explore
+                                       )
                   , llExp = future_pmap(list(Taxa
                                              , Common
                                              , dataLL
@@ -478,18 +518,6 @@
                                              )
                                         ,explore
                                         )
-                  , rr = future_pmap(list(Taxa
-                                          ,Common
-                                          ,dataRR
-                                          )
-                                     ,rr
-                                     )
-                  , ll = future_pmap(list(Taxa
-                                          ,Common
-                                          ,dataLL
-                                          )
-                                     ,ll
-                                     )
                   , rrResid = map(rr,~add_residuals(.$mod))
                   , llResid = map(ll,~add_residuals(.$mod))
                   #, rrYearEff = map(rr,~.$mod %>% make_posterior_year_effect_df)

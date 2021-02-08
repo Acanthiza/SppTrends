@@ -1,20 +1,20 @@
 
-  outName <- "2021-02-04-0653_MLR"
+  outName <- "new"
     
   if(outName == "new") rm(list=grep("run",ls(),value=TRUE,invert = TRUE))
   
   
-  runReason <- "First attempt to run all taxa through rr and ll."
+  runReason <- "First attempt to run report (on spp subset) and export"
   
 
   library(magrittr)
   
   runFrom <- 0
-  runTo <- 30
+  runTo <- 50
   
-  testing <- F
-  testRmd <- FALSE
-  commitToGit <- F
+  testing <- T
+  testRmd <- F
+  commitToGit <- T
   
   getNewData <- FALSE
   
