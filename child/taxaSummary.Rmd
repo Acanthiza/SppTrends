@@ -14,7 +14,7 @@
 
 ## _`r taxa`_: `r common`
 
-_`r taxa`_ is a member of the `r taxaDat %>% dplyr::pull(!!ensym(taxGroup))` `r tolower(taxGroup)`. Lists and list lengths were defined only for that `r tolower(taxGroup)`.
+_`r taxa`_ is a member of the `r taxaDat %>% dplyr::pull(!!ensym(taxGroup))` `r tolower(taxGroup)`. Lists and list lengths were defined only for `r taxaDat %>% dplyr::pull(!!ensym(taxGroup))`.
 
 ### Reporting rate
 
@@ -32,7 +32,7 @@ This required the estimation of `r sum(!grepl("^b",names(coef(mod))))` parameter
 
 Figure \@ref(fig:rrFig{{thisTaxa}}) shows results from the reporting rate model. Table \@ref(tab:rrTab{{thisTaxa}}) shows the effect of year on reporting rate of _`r taxa`_.
 
-_`r taxa`_ was `r taxaDat$llYearEff[[1]]$text`.
+_`r taxa`_ was `r vec_to_sentence(taxaDat$rrYearEff[[1]]$text)`.
 
 <br>
 
@@ -58,6 +58,8 @@ _`r taxa`_ was `r taxaDat$llYearEff[[1]]$text`.
           )
 
 ```
+
+<br>
 
 ### List length
 
@@ -103,6 +105,8 @@ _`r taxa`_ was `r vec_to_sentence(taxaDat$llYearEff[[1]]$text)`.
 
 ```
 
+<br>
+
 ### Overall
 
-Treating each method and each geographic area as equivalent in determining overall trend, 
+Treating each method and each geographic area as equivalent in determining overall trend, _`r taxa`_ was `r taxaDat$overall`.

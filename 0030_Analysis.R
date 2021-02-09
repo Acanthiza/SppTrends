@@ -464,7 +464,7 @@
    
    geosNames <- unique(mod$data$geo2)
    
-   atLevel <- median(mod$data$listLength)
+   if("listLength" %in% names(mod$data)) atLevel <- median(mod$data$listLength)
    
    reference <- setdiff(unique(mod$data$geo2)
                         , str_extract(names(as_tibble(mod)),paste0(geosNames,collapse="|"))
@@ -506,7 +506,7 @@
      purrr::when(geos > 1 ~ (.) %>% dplyr::bind_rows(resNotRef)
                  , geos == 1 ~ (.)
                  ) %>%
-     dplyr::select(geo2,year)
+     dplyr::select(geo2,yearEff)
    
    return(res)
   
@@ -642,5 +642,8 @@
    
    taxaModsFull$overall <- taxaModsFull %>%
      dplyr::select(contains("YearEffDf")) %>%
-     dplyr::rowwise() %>%
-     overall_year_effect()
+     split(seq(nrow(.))) %>%
+     purrr::map(overall_year_effect) %>%
+     tibble() %>%
+     tidyr::unnest(cols = 1) %>%
+     dplyr::pull(text)

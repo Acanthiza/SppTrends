@@ -4,17 +4,17 @@
   if(outName == "new") rm(list=grep("run",ls(),value=TRUE,invert = TRUE))
   
   
-  runReason <- "First attempt to run report (on spp subset) and export"
+  runReason <- "Fixed issue with wrong object in `taxaSummary.rmd`."
   
 
   library(magrittr)
   
   runFrom <- 0
-  runTo <- 30
+  runTo <- 50
   
   testing <- T
   testRmd <- F
-  commitToGit <- F
+  commitToGit <- T
   
   getNewData <- FALSE
   
