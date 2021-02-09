@@ -1,0 +1,108 @@
+```{r data{{thisTaxa}}}
+
+  summariseTaxa <- "{{thisTaxa}}"
+
+  taxaDat <- taxaModsFull %>%
+    dplyr::mutate(thisTaxa = gsub(" ","",Taxa)) %>%
+    dplyr::filter(thisTaxa == summariseTaxa)
+
+  taxa <- taxaDat$Taxa[[1]]
+
+  common <- taxaDat$Common[[1]]
+
+```
+
+## _`r taxa`_: `r common`
+
+_`r taxa`_ is a member of the `r taxaDat %>% dplyr::pull(!!ensym(taxGroup))` `r tolower(taxGroup)`. Lists and list lengths were defined only for that `r tolower(taxGroup)`.
+
+### Reporting rate
+
+```{r rrData{{thisTaxa}}}
+
+  mod <- taxaDat$rr[[1]]$mod
+
+```
+
+The model specification was:
+
+``r format(formula(mod))``
+
+This required the estimation of `r sum(!grepl("^b",names(coef(mod))))` parameters based on `r nrow(mod$data)` data points.
+
+Figure \@ref(fig:rrFig{{thisTaxa}}) shows results from the reporting rate model. Table \@ref(tab:rrTab{{thisTaxa}}) shows the effect of year on reporting rate of _`r taxa`_.
+
+_`r taxa`_ was `r taxaDat$llYearEff[[1]]$text`.
+
+<br>
+
+```{r rrFig{{thisTaxa}}, fig.height = 8, fig.width = 7, fig.cap = paste0("Reporting rate for _",taxa,"_")}
+
+  taxaDat$rr[[1]]$plot
+
+```
+
+<br>
+
+```{r rrTab{{thisTaxa}}}
+
+  taxaDat$rrYearEff[[1]] %>%
+    dplyr::select(`IBRA Subregion` = geo2
+                  , `Probability of decline` = decreasing
+                  , `Likelihood of decline` = likelihood
+                  ) %>%
+    kable(caption = paste0("Effect of year on _"
+                           , taxa
+                           , "_ reporting rate"
+                           )
+          )
+
+```
+
+### List length
+
+```{r llData{{thisTaxa}}}
+
+  mod <- taxaDat$ll[[1]]$mod
+
+```
+
+The model specification was:
+
+``r format(formula(mod))``
+
+This required the estimation of `r sum(!grepl("^b",names(coef(mod))))` parameters based on `r nrow(mod$data)` data points.
+
+Figure \@ref(fig:llFig{{thisTaxa}}) shows results from the list length model. Table \@ref(tab:llTab{{thisTaxa}}) shows the effect of year on reporting rate of _`r taxa`_.
+
+_`r taxa`_ was `r vec_to_sentence(taxaDat$llYearEff[[1]]$text)`.
+
+<br>
+
+```{r llFig{{thisTaxa}}, fig.height = 8, fig.width = 7, fig.cap = paste0("Effect of year on list length corrected reporting rate for _",taxa,"_ at three different list lengths (quantiles of ",vec_to_sentence(quantProbs),")")}
+
+  taxaDat$ll[[1]]$plot
+
+```
+
+<br>
+
+```{r llTab{{thisTaxa}}}
+
+  taxaDat$llYearEff[[1]] %>%
+    dplyr::select(`IBRA Subregion` = geo2
+                  , `Probability of decline` = decreasing
+                  , `Likelihood of decline` = likelihood
+                  ) %>%
+    kable(caption = paste0("Effect of year on list-length-corrected reporting-rate for _"
+                           , taxa
+                           , "_ at median list length of "
+                           , median(taxaDat$ll[[1]]$mod$data$listLength)
+                           )
+          )
+
+```
+
+### Overall
+
+Treating each method and each geographic area as equivalent in determining overall trend, 

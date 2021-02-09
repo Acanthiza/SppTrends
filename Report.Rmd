@@ -3,19 +3,18 @@ title: "`r paste0('Data-driven ecosystems of ',aoiFullName)`"
 subtitle: "`r paste0('[',substr(as.data.frame(git2r::repository())[1,1],1,7),'] ',as.data.frame(git2r::repository())[1,2])`"
 author:
 - Department for Environment and Water
-date: "`r format(Sys.time(), '%A, %d %B, %Y')`"
+date: "`r format(Sys.time(), '%A, %d %B, %Y. %H:%M')`"
 output:
-  bookdown::gitbook:
-    split_by: chapter
-    toc_depth: 4
-    keep_md: no
-    fig_caption: TRUE
-csl:                          "common/BibStyle.csl"
-bibliography:                 ["common/refs.bib","packageRefs.bib"]
-link-citations: yes
-editor_options: 
-  chunk_output_type: console
+  bookdown::word_document2:
+    toc: no
+    toc_depth: 3
+    reference_docx:           common/Styles.docx
+    fig_caption: yes
+link-citations: no
+csl:                          common/BibStyle.csl
+bibliography:                 [common/refs.bib,packageRefs.bib]
 ---
+
 
 # Setup code
 
@@ -69,7 +68,10 @@ Total tidied records: `r format(nrow(dat),big.mark=",")`.
 
   taxaExp = NULL
 
-  taxaLoop <- taxaModsFull$Taxa %>% if(testRmd) sample(.,3) else .
+  taxaLoop <- taxaModsFull$Taxa %>%
+    {if(testRmd) sample(.,3) else .} %>%
+    gsub(" ","",.)
+    
 
   for (i in taxaLoop) {
     
@@ -81,7 +83,7 @@ Total tidied records: `r format(nrow(dat),big.mark=",")`.
 
 ```
 
-`r paste(knit(text = ecoExp), collapse = '\n')`
+`r paste(knit(text = taxaExp), collapse = '\n')`
 
 # Appendix
 
@@ -94,7 +96,7 @@ Table \@ref(tab:runtimes) shows the time taken to run this report, and import, t
   reportTimer$stop("report", comment = "creation of .docx from .rmd")
 
   kable(read_feather(path(outDir,"timer.feather")) %>%
-          dplyr::bind_rows(read_feather(path("out","extractTimer.feather"))) %>%
+          #dplyr::bind_rows(read_feather(path("out","extractTimer.feather"))) %>%
           dplyr::bind_rows(getTimer(reportTimer)) %>%
           dplyr::mutate(timeElapsed = round(timeElapsed,1))
         , caption = "Timing of the various components that make up this report"

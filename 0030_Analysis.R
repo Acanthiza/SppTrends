@@ -364,11 +364,7 @@
       
       res$plot <- res$mod$data %>%
         dplyr::distinct(year,geo2) %>%
-        dplyr::full_join(tibble(probs = c(0.05
-                                          , 0.5
-                                          , 0.95
-                                          )
-                                ) %>%
+        dplyr::full_join(tibble(probs = quantProbs) %>%
                            dplyr::mutate(listLength = map_dbl(probs,~quantile(res$mod$data$listLength,probs = .)))
                          , by = character()
                          ) %>%
@@ -462,7 +458,7 @@
     
   }
   
-  year_effect <- function(mod) {
+  make_year_effect_df <- function(mod) {
     
    geos <- length(unique(mod$data$geo2))
    
@@ -510,37 +506,76 @@
      purrr::when(geos > 1 ~ (.) %>% dplyr::bind_rows(resNotRef)
                  , geos == 1 ~ (.)
                  ) %>%
-     dplyr::select(geo2,yearEff) %>%
-     dplyr::group_by(geo2) %>%
-     dplyr::summarise(n = n()
-                      , nCheck = nrow(as_tibble(mod))
-                      , increasing = sum(yearEff > 0)/nCheck
-                      , decreasing = sum(yearEff < 0)/nCheck
-                      , meanEff = mean(yearEff)
-                      , medianEff = median(yearEff)
-                      , cilo = quantile(yearEff, probs = 0.05)
-                      , ciup = quantile(yearEff, probs = 0.95)
-                      ) %>%
-     dplyr::mutate(likelihood = map(decreasing
-                                    , ~cut(.
-                                           , breaks = c(0,luLikelihood$maxVal)
-                                           , labels = luLikelihood$likelihood
-                                           )
-                                    )
-                   ) %>%
-     tidyr::unnest(cols = c(likelihood)) %>%
-     dplyr::mutate(text = paste0(tolower(likelihood)
-                                 , " to be decreasing ("
-                                 , 100*round(decreasing,2)
-                                 , "% chance)"
-                                 )
-                   )
+     dplyr::select(geo2,year)
    
    return(res)
   
   }
     
+  year_effect <- function(yearEffectDf,groups = c("geo2")) {
+    
+    yearEffectDf %>%
+      dplyr::select(any_of(c("yearEff",groups))) %>%
+      dplyr::group_by(!!ensym(groups)) %>%
+      dplyr::summarise(n = n()
+                       , nCheck = nrow(as_tibble(mod))
+                       , increasing = sum(yearEff > 0)/nCheck
+                       , decreasing = sum(yearEff < 0)/nCheck
+                       , meanEff = mean(yearEff)
+                       , medianEff = median(yearEff)
+                       , cilo = quantile(yearEff, probs = 0.05)
+                       , ciup = quantile(yearEff, probs = 0.95)
+                       ) %>%
+      dplyr::mutate(likelihood = map(decreasing
+                                     , ~cut(.
+                                            , breaks = c(0,luLikelihood$maxVal)
+                                            , labels = luLikelihood$likelihood
+                                            , include.lowest = TRUE
+                                            )
+                                     )
+                    ) %>%
+      tidyr::unnest(cols = c(likelihood)) %>%
+      dplyr::mutate(text = paste0(tolower(likelihood)
+                                  , " to be decreasing in the "
+                                  , geo2
+                                  , " IBRA Subregion ("
+                                  , 100*round(decreasing,2)
+                                  , "% chance)"
+                                  )
+                    )
+    
+  }
   
+  overall_year_effect <- function(dfRow) {
+    
+    dfRow %>%
+      tidyr::pivot_longer(1:ncol(.)) %>%
+      tidyr::unnest(cols = c(value)) %>%
+      dplyr::summarise(n = n()
+                       , increasing = sum(yearEff > 0)/n
+                       , decreasing = sum(yearEff < 0)/n
+                       , meanEff = mean(yearEff)
+                       , medianEff = median(yearEff)
+                       , cilo = quantile(yearEff, probs = 0.05)
+                       , ciup = quantile(yearEff, probs = 0.95)
+                       ) %>%
+      dplyr::mutate(likelihood = map(decreasing
+                                     , ~cut(.
+                                            , breaks = c(0,luLikelihood$maxVal)
+                                            , labels = luLikelihood$likelihood
+                                            , include.lowest = TRUE
+                                            )
+                                     )
+                    ) %>%
+      tidyr::unnest(cols = c(likelihood)) %>%
+      dplyr::mutate(text = paste0(tolower(likelihood)
+                                  , " to be decreasing ("
+                                  , 100*round(decreasing,2)
+                                  , "% chance)"
+                                  )
+                    )
+    
+  }
  
  #------Run models-------
  
@@ -599,6 +634,13 @@
                                         )
                   , rrResid = map(rr,~add_residuals(.$mod))
                   , llResid = map(ll,~add_residuals(.$mod))
-                  , rrYearEff = map(rr,~.$mod %>% year_effect)
-                  , llYearEff = map(ll,~.$mod %>% year_effect)
+                  , rrYearEffDf = map(rr,~.$mod %>% make_year_effect_df)
+                  , rrYearEff = map(rrYearEffDf,year_effect)
+                  , llYearEffDf = map(ll,~.$mod %>% make_year_effect_df)
+                  , llYearEff = map(llYearEffDf,year_effect)
                   )
+   
+   taxaModsFull$overall <- taxaModsFull %>%
+     dplyr::select(contains("YearEffDf")) %>%
+     dplyr::rowwise() %>%
+     overall_year_effect()

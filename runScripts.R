@@ -10,11 +10,11 @@
   library(magrittr)
   
   runFrom <- 0
-  runTo <- 50
+  runTo <- 30
   
   testing <- T
   testRmd <- F
-  commitToGit <- T
+  commitToGit <- F
   
   getNewData <- FALSE
   

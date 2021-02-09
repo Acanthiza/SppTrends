@@ -30,6 +30,8 @@
   minYear <- lubridate::year(Sys.time()) - 15
   
   
+  quantProbs <- c(0.05, 0.5, 0.95)
+  
   #---------Tidy-------
   # earliest and latest 'date' (= yearmon or YearMonth, i.e. 202012§)
   nowYearMon <- as.numeric(paste0(lubridate::year(Sys.Date()),sprintf("%02d",lubridate::month(Sys.Date()))))
