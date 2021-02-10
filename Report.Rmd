@@ -1,5 +1,5 @@
 ---
-title: "`r paste0('Data-driven ecosystems of ',aoiFullName)`"
+title: "`r paste0('Data-driven species trends in ',aoiFullName)`"
 subtitle: "`r paste0('[',substr(as.data.frame(git2r::repository())[1,1],1,7),'] ',as.data.frame(git2r::repository())[1,2])`"
 author:
 - Department for Environment and Water
@@ -12,7 +12,7 @@ output:
     fig_caption: yes
 link-citations: no
 csl:                          common/BibStyle.csl
-bibliography:                 [common/refs.bib,packageRefs.bib]
+bibliography:                 [common/refs.bib,packageRefs.bib,datasetRefs.bib]
 ---
 
 
@@ -42,7 +42,10 @@ bibliography:                 [common/refs.bib,packageRefs.bib]
 
 ```
 
-Total records: `r format(nrow(taxaAll),big.mark = ",")`.
+Records were extracted from the Global Biodiversity Information Facility using the `occ_download` function in the `rgbif` package `r cite_package("rgbif")`.
+
+Total records: `r format(nrow(taxaAll),big.mark = ",")` [`r paste0("@",refsGBIF[1,2])`].
+
 
 # Tidy
 

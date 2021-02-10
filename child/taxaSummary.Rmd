@@ -32,7 +32,7 @@ This required the estimation of `r sum(!grepl("^b",names(coef(mod))))` parameter
 
 Figure \@ref(fig:rrFig{{thisTaxa}}) shows results from the reporting rate model. Table \@ref(tab:rrTab{{thisTaxa}}) shows the effect of year on reporting rate of _`r taxa`_.
 
-_`r taxa`_ was `r vec_to_sentence(taxaDat$rrYearEff[[1]]$text)`.
+_`r taxa`_ was `r vec_to_sentence(taxaDat$rrYearEff[[1]]$text)` (Figure \@ref(fig:rrYearEffectPlot{{thisTaxa}})).
 
 <br>
 
@@ -61,6 +61,14 @@ _`r taxa`_ was `r vec_to_sentence(taxaDat$rrYearEff[[1]]$text)`.
 
 <br>
 
+```{r rrYearEffectPlot{{thisTaxa}}, fig.cap = paste0("Effect of year on _", taxa, "_ reporting rate")}
+
+  taxaDat$rrYearEffPlot[[1]]
+
+```
+
+<br>
+
 ### List length
 
 ```{r llData{{thisTaxa}}}
@@ -77,7 +85,7 @@ This required the estimation of `r sum(!grepl("^b",names(coef(mod))))` parameter
 
 Figure \@ref(fig:llFig{{thisTaxa}}) shows results from the list length model. Table \@ref(tab:llTab{{thisTaxa}}) shows the effect of year on reporting rate of _`r taxa`_.
 
-_`r taxa`_ was `r vec_to_sentence(taxaDat$llYearEff[[1]]$text)`.
+_`r taxa`_ was `r vec_to_sentence(taxaDat$llYearEff[[1]]$text)` (Figure \@ref(fig:llYearEffectPlot{{thisTaxa}})).
 
 <br>
 
@@ -107,6 +115,36 @@ _`r taxa`_ was `r vec_to_sentence(taxaDat$llYearEff[[1]]$text)`.
 
 <br>
 
+```{r llYearEffectPlot{{thisTaxa}}, fig.cap = paste0("Effect of year on list-length-corrected reporting-rate for _", taxa, "_ at median list length of ", median(taxaDat$ll[[1]]$mod$data$listLength))}
+
+  taxaDat$llYearEffPlot[[1]]
+
+```
+
+<br>
+
 ### Overall
 
-Treating each method and each geographic area as equivalent in determining overall trend, _`r taxa`_ was `r taxaDat$overall`.
+Treating each method and each geographic area as equivalent in determining overall trend, _`r taxa`_ was `r taxaDat$overall` (Figure \@ref(fig:overallYearEffectPlot{{thisTaxa}})).
+
+<br>
+
+```{r overallYearEffectPlot{{thisTaxa}}, fig.cap = paste0("Overall effect of year on _",taxa,"_")}
+
+  taxaDat %>%
+    dplyr::select(contains("YearEffDf")) %>%
+    tidyr::pivot_longer(1:ncol(.)) %>%
+    tidyr::unnest(cols = c(value)) %>%
+    dplyr::mutate(decline = sum(.$yearEff < 0)/nrow(.)) %>%
+    ggplot(aes(yearEff, fill = decline)) +
+      geom_density() +
+      geom_vline(aes(xintercept = 0)
+                 , linetype = 2
+                 , colour = "red"
+                 ) +
+      scale_fill_viridis_c(limits = c(0,1)) +
+      labs(x = "Effect of year"
+           , fill = "Probability of decline"
+           )
+
+```

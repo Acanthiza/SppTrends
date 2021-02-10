@@ -15,6 +15,7 @@
     
     file.copy(path("_book","_main.docx")
               , path(toPath,"Report.docx")
+              , overwrite = TRUE
               )
     
   }
