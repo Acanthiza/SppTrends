@@ -9,12 +9,26 @@
   taxa <- taxaDat$Taxa[[1]]
 
   common <- taxaDat$Common[[1]]
+  
+  thisTaxGroup <- taxaDat %>% dplyr::pull(!!ensym(taxGroup))
+  
+  nTaxGroup <- dat %>%
+    dplyr::filter(!!ensym(taxGroup) == thisTaxGroup) %>%
+    dplyr::left_join(luTax) %>%
+    dplyr::count(Taxa,Common)
+  
+  commonInTaxGroup <- nTaxGroup %>%
+    dplyr::top_n(5) %>%
+    dplyr::mutate(text = case_when(is.na(Common) ~ taxa
+                                   , !is.na(Common) ~ paste0("_",Taxa,"_: ",Common)
+                                   )
+                  )
 
 ```
 
 ## _`r taxa`_: `r common`
 
-_`r taxa`_ is a member of the `r taxaDat %>% dplyr::pull(!!ensym(taxGroup))` `r tolower(taxGroup)`. Lists and list lengths were defined only for `r taxaDat %>% dplyr::pull(!!ensym(taxGroup))`.
+_`r taxa`_ is a member of the `r thisTaxGroup` `r tolower(taxGroup)`. Lists and list lengths were defined only for `r thisTaxGroup`. Other `r thisTaxGroup` include `r vec_to_sentence(commonInTaxGroup$text)`. In total there were `r nrow(nTaxGroup)` `r thisTaxGroup` in the data set, setting an upper limit to the maximum possible list length - although this was adjusted down to the number of `r thisTaxGroup` Taxa with records in each IBRA Subregion.
 
 ### Reporting rate
 

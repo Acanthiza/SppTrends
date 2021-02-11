@@ -1,6 +1,6 @@
 ---
 title: "`r paste0('Data-driven species trends in ',aoiFullName)`"
-subtitle: "`r paste0('[',substr(as.data.frame(git2r::repository())[1,1],1,7),'] ',as.data.frame(git2r::repository())[1,2])`"
+subtitle: "`r paste0(as.data.frame(git2r::repository())[1,2],'. repo https://github.com/Acanthiza/SppTrends/commit/',substr(as.data.frame(git2r::repository())[1,1],1,7))`"
 author:
 - Department for Environment and Water
 date: "`r format(Sys.time(), '%A, %d %B, %Y. %H:%M')`"
@@ -71,7 +71,9 @@ Total tidied records: `r format(nrow(dat),big.mark=",")`.
 
   taxaExp = NULL
 
-  taxaLoop <- taxaModsFull$Taxa %>%
+  taxaLoop <- taxaModsFull %>%
+    dplyr::arrange(Kingdom,Phylum,Class,Family,Genus,Species) %>%
+    dplyr::pull(Taxa) %>%
     {if(testRmd) sample(.,3) else .} %>%
     gsub(" ","",.)
     

@@ -1,9 +1,12 @@
 
+  timer$start("analysis")
+
   #---------Filter-------
   
   minListLengthThresh <- 3
   maxListLengthOccurenceThresh <- 3
   minlistOccurenceThresh <- 5
+  minYearsThresh <- 3
   
   find_min_list_length <- function(df) {
     
@@ -14,7 +17,7 @@
   find_max_list_length_occurence <- function(df) {
     
     df %>%
-      dplyr::count(Taxa,listLength,name="lists") %>%
+      dplyr::count(geo2,Taxa,listLength,name="lists") %>%
       dplyr::group_by(Taxa) %>%
       dplyr::filter(listLength == max(listLength)) %>%
       dplyr::ungroup() %>%
@@ -27,9 +30,20 @@
   find_min_list_occurence <- function(df) {
     
     df %>%
-      dplyr::count(Taxa,name = "lists") %>%
+      dplyr::count(geo2,Taxa,name = "lists") %>%
       dplyr::filter(lists == min(lists)) %>%
       dplyr::pull(lists) %>%
+      unique()
+    
+  }
+  
+  find_min_years <- function(df) {
+    
+    df %>%
+      dplyr::count(geo2,Taxa,year,name = "blah") %>%
+      dplyr::count(geo2,Taxa, name = "years") %>%
+      dplyr::filter(years == min(years)) %>%
+      dplyr::pull(years) %>%
       unique()
     
   }
@@ -37,37 +51,49 @@
   minListLength <- find_min_list_length(dat)
   maxListLengthOccurence <- find_max_list_length_occurence(dat)
   minlistOccurence <- find_min_list_occurence(dat)
+  minYears <- find_min_years(dat)
     
   
   while(minListLength < minListLengthThresh |
         maxListLengthOccurence < maxListLengthOccurenceThresh |
-        minlistOccurence < minlistOccurenceThresh
+        minlistOccurence < minlistOccurenceThresh |
+        minYears < minYearsThresh
         ) {
     
     dat <- dat %>%
       dplyr::filter(listLength > minListLengthThresh)
     
     removeTaxaOnShortLists <- dat %>%
-      dplyr::count(Taxa,listLength,name="lists") %>%
+      dplyr::count(geo2,Taxa,listLength,name="lists") %>%
       dplyr::group_by(Taxa) %>%
       dplyr::filter(listLength == max(listLength)) %>%
       dplyr::ungroup() %>%
       dplyr::filter(listLength < maxListLengthOccurenceThresh) %>%
-      dplyr::distinct(Taxa)
+      dplyr::distinct(geo2,Taxa)
     
     removeTaxaWithFewOccurrences <- dat %>%
       dplyr::anti_join(removeTaxaOnShortLists) %>%
-      dplyr::count(Taxa,name = "lists") %>%
+      dplyr::count(geo2,Taxa,name = "lists") %>%
       dplyr::filter(lists < minlistOccurenceThresh) %>%
-      dplyr::distinct(Taxa)
+      dplyr::distinct(geo2,Taxa)
+    
+    removeTaxaWithFewYears <- dat %>%
+      dplyr::anti_join(removeTaxaOnShortLists) %>%
+      dplyr::anti_join(removeTaxaWithFewOccurrences) %>%
+      dplyr::count(geo2,Taxa,year,name = "blah") %>%
+      dplyr::count(geo2,Taxa, name = "years") %>%
+      dplyr::filter(years < minYearsThresh) %>%
+      dplyr::distinct(geo2,Taxa)
     
     dat <- dat %>%
       dplyr::anti_join(removeTaxaOnShortLists) %>%
-      dplyr::anti_join(removeTaxaWithFewOccurrences)
+      dplyr::anti_join(removeTaxaWithFewOccurrences) %>%
+      dplyr::anti_join(removeTaxaWithFewYears)
     
     minListLength <- find_min_list_length(dat)
     maxListLengthOccurence <- find_max_list_length_occurence(dat)
     minlistOccurence <- find_min_list_occurence(dat)
+    minYears <- find_min_years(dat)
     
   }
   
@@ -78,16 +104,41 @@
   
   #--------Test taxa---------
   
-  tests <- c("Melithreptus"
-             , "Iridomyrmex"
-             , "Chloris"
-             , "Cacatua"
-             , "Myiagra"
-             , "Pseudonaja"
-             , "Pogona"
-             , "Vespadelus"
-             , "Macropus"
-             )
+  orders <- c("Anseriformes"
+              , "Charadriiformes"
+              )
+  
+  genera <- c("Melithreptus"
+              , "Iridomyrmex"
+              , "Chloris"
+              , "Cacatua"
+              , "Myiagra"
+              , "Pseudonaja"
+              , "Pogona"
+              , "Vespadelus"
+              , "Macropus"
+              , "Pachycephala"
+              , "Phylidonyris"
+              , "Climacteris"
+              )
+  
+  testOrder <- luTax %>%
+    dplyr::filter(grepl(paste0(orders
+                               ,collapse="|"
+                               )
+                        ,Order
+                        )
+                  )
+  
+  testGenus <- luTax %>%
+    dplyr::filter(grepl(paste0(genera
+                               , collapse = "|"
+                               )
+                        , Genus
+                        )
+                  )
+  
+  tests <- c(testOrder$Taxa,testGenus$Taxa)
   
   
   #-------RR prep---------
@@ -118,7 +169,7 @@
     dplyr::mutate(prop = success/trials) %>%
     dplyr::inner_join(taxaGeo) %>%
     tidyr::nest(dataRR = c(geo1,geo2,year,success,trials,prop)) %>%
-    purrr::when(testing ~ (.) %>% dplyr::filter(grepl(paste0(tests,collapse="|"),Taxa))
+    purrr::when(testing ~ (.) %>% dplyr::filter(Taxa %in% tests)
                 , !testing ~ (.)
                 )
   
@@ -151,7 +202,7 @@
     dplyr::mutate(prop = success/trials) %>%
     dplyr::inner_join(taxaGeo) %>%
     tidyr::nest(dataLL = c(geo1,geo2,year,success,trials,listLength,prop)) %>%
-    purrr::when(testing ~ (.) %>% dplyr::filter(grepl(paste0(tests,collapse="|"),Taxa))
+    purrr::when(testing ~ (.) %>% dplyr::filter(Taxa %in% tests)
                 , !testing ~ (.)
                 )
   
@@ -562,7 +613,8 @@
       dplyr::group_by(!!ensym(groups)) %>%
       dplyr::summarise(n = n()) %>%
       dplyr::pull(n) %>%
-      unique()
+      unique() %>%
+      mean() # hack to deal with odd situation with, say, 3999 estimates
     
     yearEffectDf %>%
       dplyr::select(any_of(c("yearEff",groups))) %>%
@@ -690,13 +742,12 @@
   # Import results of models
   taxaModsFull <- datRR %>%
     dplyr::full_join(datLL) %>%
-    dplyr::mutate(rr = map_chr(Taxa
-                               , ~fs::dir_ls(outDir,regexp = paste0("reporting-rate_",.))
-                               )
-                  , rr = map(rr,read_rds)
-                  , ll = map_chr(Taxa
-                               , ~fs::dir_ls(outDir,regexp = paste0("list-length_",.))
-                               )
+    dplyr::mutate(rr = fs::path(outDir,paste0("reporting-rate_",Taxa,".rds"))
+                  , ll = fs::path(outDir,paste0("list-length_",Taxa,".rds"))
+                  , exists = map2_lgl(rr,ll,~(file.exists(.x)&file.exists(.y)))
+                  ) %>%
+    dplyr::filter(exists) %>%
+    dplyr::mutate(rr = map(rr,read_rds)
                   , ll = map(ll,read_rds)
                   , rrExp = pmap(list(Taxa
                                     , Common
@@ -717,8 +768,8 @@
                   , rrResid = map(rr,~add_residuals(.$mod))
                   , llResid = map(ll,~add_residuals(.$mod))
                   , rrYearEffDf = map(rr,~.$mod %>% make_year_effect_df)
-                  , rrYearEff = map(rrYearEffDf,year_effect,groups = "geo2")
                   , llYearEffDf = map(ll,~.$mod %>% make_year_effect_df)
+                  , rrYearEff = map(rrYearEffDf,year_effect,groups = "geo2")
                   , llYearEff = map(llYearEffDf,year_effect,groups = "geo2")
                   , rrYearEffPlot = map(rrYearEffDf,year_effect_plot)
                   , llYearEffPlot = map(llYearEffDf,year_effect_plot)
@@ -731,3 +782,6 @@
    tibble() %>%
    tidyr::unnest(cols = 1) %>%
    dplyr::pull(text)
+
+  
+  timer$stop("analysis", comment = paste0("models run for ",nrow(taxaModsFull)," taxa"))

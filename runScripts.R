@@ -1,20 +1,20 @@
 
-  outName <- "2021-02-07-1313_MLR"
+  outName <- "new"
     
   if(outName == "new") rm(list=grep("run",ls(),value=TRUE,invert = TRUE))
   
   
-  runReason <- "Fixed issue with wrong object in `taxaSummary.rmd`."
+  runReason <- "Extended filtering to include 'geo2' = IBRA Subregion"
   
 
   library(magrittr)
   
   runFrom <- 0
-  runTo <- 30
+  runTo <- 50
   
   testing <- T
   testRmd <- F
-  commitToGit <- F
+  commitToGit <- T
   
   getNewData <- FALSE
   

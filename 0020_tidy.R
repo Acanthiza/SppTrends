@@ -1,4 +1,6 @@
 
+  timer$start("tidy")
+
   #------Dates-------
   taxaAllDates <- taxaAll %>%
     dplyr::filter(year >= minYear)
@@ -75,4 +77,4 @@
     dplyr::mutate(success = 1) %>%
     dplyr::add_count(list, name = "listLength")
 
-  
+  timer$stop("tidy", comment = paste0("tidy took records from ",nrow(taxaAll)," to ",nrow(dat)))

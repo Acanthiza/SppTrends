@@ -1,4 +1,6 @@
 
+  timer$start("import")
+  
   #--------BDBSA---------
   
   source(path("code","bdbsa.r"))
@@ -91,4 +93,7 @@
     dplyr::filter(n == max(n, na.rm = TRUE)) %>%
     dplyr::ungroup() %>%
     dplyr::select(Taxa,ISINDIGENOUS)
+  
+  
+  timer$stop("import", comment = paste0("Get new data = ",getNewData))
   
