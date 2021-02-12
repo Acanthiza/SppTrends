@@ -105,18 +105,18 @@
   #--------Test taxa---------
   
   orders <- c("Anseriformes"
-              , "Charadriiformes"
+              #, "Charadriiformes"
               )
   
   genera <- c("Melithreptus"
-              , "Iridomyrmex"
+              #, "Iridomyrmex"
               , "Chloris"
               , "Cacatua"
               , "Myiagra"
-              , "Pseudonaja"
-              , "Pogona"
-              , "Vespadelus"
-              , "Macropus"
+              #, "Pseudonaja"
+              #, "Pogona"
+              #, "Vespadelus"
+              #, "Macropus"
               , "Pachycephala"
               , "Phylidonyris"
               , "Climacteris"
@@ -390,7 +390,7 @@
                           , colour = trials
                           )
                     ) +
-        facet_grid(~geo2) +
+        facet_wrap(~geo2) +
         scale_colour_viridis_c() +
         labs(title = plotTitles
              , subtitle = "Thick line is median credible value for that year"
@@ -472,7 +472,7 @@
                     , height = 0.025
                     , width = 0.2
                     ) +
-        facet_grid(length~geo2) +
+        facet_plot(length~geo2) +
         scale_colour_viridis_c() +
         theme(axis.text.x = element_text(angle = 90, vjust = 0.5, hjust=1)) +
         labs(title = plotTitles)
@@ -785,3 +785,4 @@
 
   
   timer$stop("analysis", comment = paste0("models run for ",nrow(taxaModsFull)," taxa"))
+  

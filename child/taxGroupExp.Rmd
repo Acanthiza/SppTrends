@@ -1,0 +1,54 @@
+```{r data{{thisTaxGroup}}}
+
+  useTaxGroup <- "{{thisTaxGroup}}"
+
+  taxGroupDat <- taxaModsFull %>%
+    dplyr::mutate(thisTaxGroup = gsub(" ","",!!ensym(taxGroup))) %>%
+    dplyr::filter(thisTaxGroup == useTaxGroup)
+
+  nTaxGroup <- dat %>%
+    dplyr::filter(!!ensym(taxGroup) == useTaxGroup) %>%
+    dplyr::left_join(luTax) %>%
+    dplyr::count(Taxa,Common)
+  
+  commonInTaxGroup <- nTaxGroup %>%
+    dplyr::top_n(5) %>%
+    dplyr::mutate(text = case_when(is.na(Common) ~ Taxa
+                                   , !is.na(Common) ~ paste0("_",Taxa,"_: ",Common)
+                                   )
+                  )
+
+```
+
+# `r useTaxGroup`
+
+The [GBIF taxonomic backbone](https://www.gbif.org/dataset/d7dddbf4-2cf0-4f39-9b2a-bb099caae36c) lists `r useTaxGroup` as `r taxGroupNames %>% dplyr::filter(!!ensym(taxGroup) == useTaxGroup) %>% dplyr::pull(Common) %>% paste0(collapse = "|") %>% tolower()`.
+
+The most common `r useTaxGroup` taxa in the data set included `r vec_to_sentence(commonInTaxGroup$text)`. In total there were `r nrow(nTaxGroup)` `r useTaxGroup` in the data set, setting an upper limit to the maximum possible list length - although this was adjusted down to the number of `r useTaxGroup` with records in each IBRA Subregion.
+
+```{r taxGroupPrep{{thisTaxGroup}}, include=FALSE}
+
+  taxaExp = NULL
+
+  taxaLoop <- taxGroupDat %>%
+    purrr::when(testRmd ~ (.) %>%
+                  dplyr::sample_n(nrow(.)) %>%
+                  dplyr::slice(1:3)
+                , !testRmd ~ (.)
+                ) %>%
+    dplyr::pull(Taxa) %>%
+    sort() %>%
+    gsub(" ","",.)
+    
+
+  for (i in taxaLoop) {
+    
+    thisTaxa <- i
+    
+    taxaExp = c(taxaExp, knit_expand('child/taxaSummary.Rmd'))
+    
+  }
+
+```
+
+`r paste(knit(text = taxaExp), collapse = '\n')`

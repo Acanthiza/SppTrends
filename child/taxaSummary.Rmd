@@ -28,8 +28,6 @@
 
 ## _`r taxa`_: `r common`
 
-_`r taxa`_ is a member of the `r thisTaxGroup` `r tolower(taxGroup)`. Lists and list lengths were defined only for `r thisTaxGroup`. Other `r thisTaxGroup` include `r vec_to_sentence(commonInTaxGroup$text)`. In total there were `r nrow(nTaxGroup)` `r thisTaxGroup` in the data set, setting an upper limit to the maximum possible list length - although this was adjusted down to the number of `r thisTaxGroup` Taxa with records in each IBRA Subregion.
-
 ### Reporting rate
 
 ```{r rrData{{thisTaxa}}}
@@ -75,7 +73,7 @@ _`r taxa`_ was `r vec_to_sentence(taxaDat$rrYearEff[[1]]$text)` (Figure \@ref(fi
 
 <br>
 
-```{r rrYearEffectPlot{{thisTaxa}}, fig.cap = paste0("Effect of year on _", taxa, "_ reporting rate")}
+```{r rrYearEffectPlot{{thisTaxa}}, fig.height = 8, fig.width = 7, fig.cap = paste0("Effect of year on _", taxa, "_ reporting rate")}
 
   taxaDat$rrYearEffPlot[[1]]
 
@@ -129,7 +127,7 @@ _`r taxa`_ was `r vec_to_sentence(taxaDat$llYearEff[[1]]$text)` (Figure \@ref(fi
 
 <br>
 
-```{r llYearEffectPlot{{thisTaxa}}, fig.cap = paste0("Effect of year on list-length-corrected reporting-rate for _", taxa, "_ at median list length of ", median(taxaDat$ll[[1]]$mod$data$listLength))}
+```{r llYearEffectPlot{{thisTaxa}}, fig.height = 8, fig.width = 7, fig.cap = paste0("Effect of year on list-length-corrected reporting-rate for _", taxa, "_ at median list length of ", median(taxaDat$ll[[1]]$mod$data$listLength))}
 
   taxaDat$llYearEffPlot[[1]]
 

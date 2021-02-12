@@ -4,7 +4,7 @@
   if(outName == "new") rm(list=grep("run",ls(),value=TRUE,invert = TRUE))
   
   
-  runReason <- "Extended filtering to include 'geo2' = IBRA Subregion"
+  runReason <- "Ordered taxa exploration under 'taxGroup' headings."
   
 
   library(magrittr)

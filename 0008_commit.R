@@ -13,5 +13,5 @@
     
   }
 
-  timer$stop("git", comment = gitMessage)
+  timer$stop("git", comment = paste0("commit to git = ",commitToGit,". ",gitMessage))
   

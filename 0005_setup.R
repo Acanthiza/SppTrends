@@ -12,8 +12,8 @@
   polyBuffer <- 0
   
   # What is the area of interest (AOI) for this analysis?
-  aoiName <- c("FLB","KAN")
-  aoiFullName <- "MLR"
+  aoiName <- c("FLB","KAN","EYB","MDD","NCP","SVP")
+  aoiFullName <- "agricultural zone"
   Statewide <- F
   
   # Taxonomic grouping
@@ -22,20 +22,11 @@
   # Length of one side of grid in metres
   gridSize <- 5000
   
-  minRRListLength <- 6
-  minLLListLength <- 2
-  minListsPerYear <- # now set as a fraction of length(unique(cell or ibrasub or whatever))
-  minTaxaOccurence <- 10
-  
-  minYear <- lubridate::year(Sys.time()) - 15
-  
+  minYear <- lubridate::year(Sys.time()) - 30
   
   quantProbs <- c(0.05, 0.5, 0.95)
   
   #---------Tidy-------
-  # earliest and latest 'date' (= yearmon or YearMonth, i.e. 202012§)
-  nowYearMon <- as.numeric(paste0(lubridate::year(Sys.Date()),sprintf("%02d",lubridate::month(Sys.Date()))))
-  firstYearMon <- 183601
   
   # Which fields to collect from each data source - i.e. map the original source fields to these...
   collectFields <- c("LATITUDE","LONGITUDE"

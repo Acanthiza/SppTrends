@@ -59,8 +59,6 @@ Area of interest: `r aoiFullName`, defined by `r vec_to_sentence(aoiName)` IBRA 
 
 Total tidied records: `r format(nrow(dat),big.mark=",")`.
 
-# Analysis
-
 ```{r analysis}
 
   if(!exists("taxaModsFull")) source("0030_Analysis.R")
@@ -69,26 +67,33 @@ Total tidied records: `r format(nrow(dat),big.mark=",")`.
 
 ```{r include=FALSE}
 
-  taxaExp = NULL
+  taxGroupExp = NULL
 
-  taxaLoop <- taxaModsFull %>%
-    dplyr::arrange(Kingdom,Phylum,Class,Family,Genus,Species) %>%
-    dplyr::pull(Taxa) %>%
+  taxGroupNames <- taxaModsFull %>%
+    dplyr::distinct(!!ensym(taxGroup)) %>%
+    dplyr::mutate(gbifInfo = map(!!ensym(taxGroup),name_backbone)) %>%
+    tidyr::unnest(cols = c(gbifInfo)) %>%
+    dplyr::mutate(Common = map_chr(usageKey,get_gbif_common))
+
+  taxGroupLoop <- taxaModsFull %>%
+    dplyr::pull(!!ensym(taxGroup)) %>%
+    unique() %>%
+    sort() %>%
     {if(testRmd) sample(.,3) else .} %>%
     gsub(" ","",.)
     
 
-  for (i in taxaLoop) {
+  for (i in taxGroupLoop) {
     
-    thisTaxa <- i
+    thisTaxGroup <- i
     
-    taxaExp = c(taxaExp, knit_expand('child/taxaSummary.Rmd'))
+    taxGroupExp = c(taxGroupExp, knit_expand('child/taxGroupExp.Rmd'))
     
   }
 
 ```
 
-`r paste(knit(text = taxaExp), collapse = '\n')`
+`r paste(knit(text = taxGroupExp), collapse = '\n')`
 
 # Appendix
 
