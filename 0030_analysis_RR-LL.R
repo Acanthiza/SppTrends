@@ -463,7 +463,7 @@
                                     )
                  ,aes(year
                       ,prop
-                      ,colour = if(sum(grepl("listlength",tolower(names(mod$data))))>0) listLength else "none"
+                      ,colour = if(sum(grepl("listlength",tolower(names(res$mod$data))))>0) listLength else "none"
                       )
                  ) +
       facet_wrap(~geo2) +
