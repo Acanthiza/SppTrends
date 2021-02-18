@@ -6,13 +6,16 @@
   source(path("code","bdbsa.r"))
   
   taxaBDBSA <- rawBDBSA %>%
-    dplyr::mutate(year = year(VISITDATE)) %>%
+    dplyr::mutate(year = year(VISITDATE)
+                  , month = month(VISITDATE)
+                  , yearmon = as.numeric(paste0(year,sprintf("%02d",month)))
+                  ) %>%
     dplyr::add_count(SPECIES, name = "records") %>%
     dplyr::filter(!is.na(LATITUDE)
                   , !is.na(LONGITUDE)
                   , !is.na(SPECIES)
-                  , !is.na(year)
-                  #, !grepl("in-active|sfossil",METHODDESC)
+                  , !is.na(yearmon)
+                  , !grepl("in-active|sfossil",METHODDESC)
                   , !is.na(NSXCODE)
                   , !NUMOBSERVED %in% nonRecords
                   , records > 3
@@ -30,7 +33,9 @@
   taxaGBIF <- rawGBIF %>%
     as_tibble() %>%
     dplyr::mutate(SPECIES = str_extract(scientificName,"[[:alpha:]]+\\s[[:alpha:]]+")
-                  , year = as.numeric(substr(year,1,4))
+                  , year = as.numeric(substr(eventDate,1,4))
+                  , month = as.numeric(substr(eventDate,6,7))
+                  , yearmon = as.numeric(paste0(year,substr(eventDate,6,7)))
                   ) %>%
     dplyr::select(LATITUDE = decimalLatitude
                   , LONGITUDE = decimalLongitude
@@ -39,6 +44,8 @@
                   #, METHODDESC = ?
                   , NUMOBSERVED = individualCount
                   , year
+                  , month
+                  , yearmon
                   , maxDist = coordinateUncertaintyInMeters
                   ) %>%
     dplyr::add_count(SPECIES, name = "records") %>%

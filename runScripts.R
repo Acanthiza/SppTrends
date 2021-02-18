@@ -1,16 +1,11 @@
 
   outName <- "new"
     
-  if(outName == "new") rm(list=grep("run",ls(),value=TRUE,invert = TRUE))
-  
-  
-  runReason <- "Ordered taxa exploration under 'taxGroup' headings."
-  
-
   library(magrittr)
   
   runFrom <- 0
-  runTo <- 50
+  runTo <- 30
+  excludes <- NA
   
   testing <- T
   testRmd <- F
@@ -18,9 +13,12 @@
   
   getNewData <- FALSE
   
+  runReason <- paste0("Changed rr and ll models to gam. Testing = ",testing,".")
+  
   dir() %>%
     grep("^\\d{4}_.*\\.R$",.,value=TRUE) %>%
+    #grep(excludes,.,value = TRUE,invert = TRUE) %>%
     setNames(stringr::str_extract(.,"\\d{4}")) %>%
-    `[` (names(.)[as.numeric(names(.)) <= runTo & as.numeric(names(.)) >= runFrom]) %>%
+    `[` (names(.)[as.numeric(names(.)) <= runTo & as.numeric(names(.)) >= runFrom & !as.numeric(names(.)) %in% excludes]) %>%
     purrr::walk(source, verbose = TRUE)
   

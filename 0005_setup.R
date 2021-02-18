@@ -12,8 +12,8 @@
   polyBuffer <- 0
   
   # What is the area of interest (AOI) for this analysis?
-  aoiName <- c("FLB","KAN","EYB","MDD","NCP","SVP")
-  aoiFullName <- "agricultural zone"
+  aoiName <- c("FLB","KAN")
+  aoiFullName <- "MLR"
   Statewide <- F
   
   # Taxonomic grouping
@@ -32,7 +32,7 @@
   collectFields <- c("LATITUDE","LONGITUDE"
                      ,"SPECIES", "CommonName"
                      ,"METHODDESC","NUMOBSERVED","ISINDIGENOUSFLAG","Rank"
-                     ,"year","month"
+                     ,"year","month","yearmon"
                      ,"maxDist"
                      )
   
@@ -84,38 +84,15 @@
                        ,"rangeBuilder"
                        ,"rstan"
                        ,"rstanarm"
+                       ,"gamm4"
                        ,"ggridges"
                        ,"parallelDist"
+                       ,"ubms"
                        )
                      )
   
   purrr::walk(packages,library,character.only=TRUE)  
   
-  
-  
-#------Options-------
-  
-  # rstan options
-  options(mc.cores = parallel::detectCores())
-  rstan_options(auto_write = TRUE)
-  Sys.setenv(LOCAL_CPPFLAGS = '-march=native')
-  
-  
-  # tmap options
-  tmap::tmap_options(basemaps = c("OpenStreetMap.Mapnik"
-                                  , "Esri.WorldImagery"
-                                  )
-                     )
-  
-  tmap::tmap_mode("view")
-  
-  
-  # Scientific notation?
-  options(scipen = 999)
-  
-  
-  # ggplot theme
-  ggplot2::theme_set(ggplot2::theme_grey())
   
   
   #-------Load functions-------
@@ -132,6 +109,7 @@
   }
   
   source("common/functions.R") # these are generic functions (e.g. vec_to_sentence)
+  source("code/sppTrendFunctions.R")
   
   
 #------Chunk options-------
@@ -155,7 +133,8 @@
   project <- basename(getwd())
   
   # What folder to save outputs to
-  if(!exists("outName")) outName <- paste0(format(Sys.time(),"%Y-%m-%d-%H%M"),"_",aoiFullName)
+  outNameRaw <- outName
+  if(outName == "new") outName <- paste0(format(Sys.time(),"%Y-%m-%d-%H%M"),"_",aoiFullName)
   
   # Directory names
   outDir <- fs::path("out",outName)
@@ -258,6 +237,38 @@
   options(rf.cores = useCores)
   
   
+  
+#------Options-------
+  
+  #------ rstan options-------
+  options(mc.cores = useCores)
+  rstan_options(auto_write = TRUE)
+  Sys.setenv(LOCAL_CPPFLAGS = '-march=native')
+  
+  testChains <- 2
+  testIter <- 500
+  
+  useChains <- 4
+  useIter <- 2000
+  
+  
+  # tmap options
+  tmap::tmap_options(basemaps = c("OpenStreetMap.Mapnik"
+                                  , "Esri.WorldImagery"
+                                  )
+                     )
+  
+  tmap::tmap_mode("view")
+  
+  
+  # Scientific notation?
+  options(scipen = 999)
+  
+  
+  # ggplot theme
+  ggplot2::theme_set(ggplot2::theme_grey())
+  
+  
 #---------References-------
   
   packageBibFile <- "packageRefs.bib"
@@ -269,6 +280,13 @@
             )
   
   refs <- fix_bib(packageBibFile,isPackageBib = TRUE)
+  
+  
+#------Settings - save or load -------
+  
+  settings <- fs::path(outDir,".RData")
+  
+  if(outNameRaw == "new") save.image(file = settings) else load(settings)
 
   
 #-------

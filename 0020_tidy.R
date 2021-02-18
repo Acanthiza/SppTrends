@@ -32,7 +32,7 @@
   taxaAllDatesAOITax <- taxaAllDatesAOI %>%
     dplyr::left_join(luGBIF[,c("id","Taxa","Rank")], by = c("SPECIES" = "id")) %>%
     dplyr::filter(Rank > "Genus") %>%
-    dplyr::count(Taxa,LATITUDE,LONGITUDE,year,name="siteRecords") %>%
+    dplyr::count(Taxa,LATITUDE,LONGITUDE,year,month,yearmon,name="siteRecords") %>%
     dplyr::left_join(luTax)
   
   #-------Add geo context-------
@@ -65,16 +65,12 @@
                   ) %>%
     dplyr::distinct(LATITUDE,LONGITUDE,cell,geo1,geo2)
   
-  taxaAllDatesAOITaxGeo <- taxaAllDatesAOITax %>%
-    dplyr::inner_join(patchGeoContext) %>%
-    dplyr::distinct(!!ensym(taxGroup),Taxa,year,geo1,geo2,cell) %>%
-    dplyr::mutate(list = paste0(year,"-",!!ensym(taxGroup),"-",cell))
-  
   
   #------dat--------
+  dat <- taxaAllDatesAOITax %>%
+    dplyr::inner_join(patchGeoContext) %>%
+    dplyr::distinct(!!ensym(taxGroup),Taxa,year,month,yearmon,geo1,geo2,cell) %>%
+    dplyr::mutate(cell = as.factor(cell))
   
-  dat <- taxaAllDatesAOITaxGeo %>%
-    dplyr::mutate(success = 1) %>%
-    dplyr::add_count(list, name = "listLength")
-
+  
   timer$stop("tidy", comment = paste0("tidy took records from ",nrow(taxaAll)," to ",nrow(dat)))
