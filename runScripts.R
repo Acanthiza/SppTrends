@@ -4,8 +4,8 @@
   library(magrittr)
   
   runFrom <- 0
-  runTo <- 30
-  excludes <- NA
+  runTo <- 50
+  excludes <- 35
   
   testing <- T
   testRmd <- F

@@ -1,27 +1,33 @@
 
   N <- 100
   
-  x <- rnorm(N)
-  
-  a <- sample(letters[1:5],N,replace = TRUE)
-
-  suc <- as.numeric(round(rnorm(N),0) > -0.5)
-  
-  tr <- 1
-  
   df <- tibble(year = sample(1991:2020,N,replace = TRUE)) %>%
-    dplyr::mutate(cell = sample(1:10,N,replace = TRUE)
-                  , success = sample(c(0,1),N,replace = TRUE,prob = c(0.6,0.4))
+    dplyr::mutate(success = sample(c(0,1),N,replace = TRUE,prob = c(0.6,0.4))
                   , geo2 = sample(letters[1:5],N,replace = TRUE)
+                  , cell = paste0(geo2,sample(1:10,N,replace = TRUE))
+                  , listLength = rnbinom(100,5,mu = 15)
+                  , listLength = if_else(listLength == 0, 1, listLength)
+                  , logListLength = log(listLength)
                   , trials = 1
                   ) %>%
     dplyr::distinct()
   
   
-  mod <- stan_gamm4(cbind(success,trials - success) ~ s(year, k = 4) + geo2 + s(year, k = 4, by = geo2)
+  mod <- stan_gamm4(cbind(success,trials - success) ~
+                      s(year, k = 4, bs = "ts") +
+                      s(year, k = 4, by = geo2, bs = "ts") +
+                      s(year, k = 4, by = logListLength, bs = "ts") +
+                      geo2*logListLength
+                    # + s(year, k = 4, by = c(geo2,logListLength), bs = "ts") # FAILS
+                    
+                    # https://stackoverflow.com/questions/47934100/how-to-specify-the-non-linear-interaction-of-two-factor-variables-in-generalised
+                    # link used BAM, not GAM
+                    # + s(year, k = 4, by = interaction(geo2,logListLength), bs = "ts") # FAILS 
                     , data = df
                     , family = binomial()
                     , random = ~(1|cell)
+                    , chains = testChains
+                    , iter = testIter
                     )
   
   
@@ -55,7 +61,7 @@
     dplyr::ungroup() %>%
     dplyr::mutate(medLL = exp(median(mod$data$logListLength)))
   
-  plotLines <- mod$data %>%
+  mod$data %>%
     distinct(year,geo2) %>%
     dplyr::mutate(logListLength = log(median(rrDf$listLength))
                   , col = row.names(.)
@@ -67,26 +73,26 @@
                                 , re_formula = NA
                                 ) %>%
     ggplot(aes(x = year)) +
-    geom_line(aes(y = .value, group = .draw), alpha = 0.05) +
-    geom_line(data = res
-              , aes(y = modMean)
-              , size = 2
-              ) +
-    geom_point(data = rrDf %>%
-                 dplyr::group_by(year,geo2) %>%
-                 dplyr::summarise(success = sum(success)
-                                  , trials = n()
-                                  ) %>%
-                 dplyr::ungroup() %>%
-                 dplyr::mutate(prop = success/trials)
-               , aes(y = prop
-                     , colour = trials
-                     )
-               ) +
-    facet_wrap(~geo2) +
-    scale_colour_viridis_c()
+      geom_line(aes(y = .value, group = .draw), alpha = 0.05) +
+      geom_line(data = res
+                , aes(y = modMean)
+                , size = 2
+                ) +
+      geom_point(data = df %>%
+                   dplyr::group_by(year,geo2) %>%
+                   dplyr::summarise(success = sum(success)
+                                    , trials = n()
+                                    ) %>%
+                   dplyr::ungroup() %>%
+                   dplyr::mutate(prop = success/trials)
+                 , aes(y = prop
+                       , colour = trials
+                       )
+                 ) +
+      facet_wrap(~geo2) +
+      scale_colour_viridis_c()
   
-  plotRibbon <- ggplot() +
+  ggplot() +
     geom_ribbon(data = res
                 , aes(year,modMean,ymin = modci90lo, ymax = modci90up)
                 , alpha = 0.4
@@ -96,7 +102,7 @@
               , linetype = 1
               , size = 1.5
               ) +
-    geom_point(data = rrDf %>%
+    geom_point(data = df %>%
                  dplyr::group_by(year,geo2,listLength) %>%
                  dplyr::summarise(success = sum(success)
                                   , trials = n()

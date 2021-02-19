@@ -22,7 +22,7 @@
   # Length of one side of grid in metres
   gridSize <- 5000
   
-  minYear <- lubridate::year(Sys.time()) - 30
+  minYear <- 1980 #lubridate::year(Sys.time()) - 30
   
   quantProbs <- c(0.05, 0.5, 0.95)
   
@@ -37,6 +37,16 @@
                      )
   
   nonRecords <- c("0","none detected","None detected","none detected ")
+  
+  
+  #--------Analysis - RR----------------
+  
+  # Years at which to predict (and compare change)
+  testYears <- tibble::tribble(~type, ~year
+                       , "reference", 1995
+                       , "recent", 2020
+                       ) %>%
+    tidyr::unnest(cols = c(year))
 
 #-----Packages-----
   

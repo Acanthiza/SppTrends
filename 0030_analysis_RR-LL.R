@@ -189,17 +189,13 @@
     
   }
   
-  rr <- function(Taxa,Common,rrDf) {
+  rr <- function(Taxa,rrDf) {
     
     print(Taxa)
     
     outFile <- fs::path(outDir,paste0("reporting-rate_",Taxa,".rds"))
     
-    res <- list()
-  
     geos <- length(unique(rrDf$geo2))
-    
-    plotTitles <- bquote(~italic(.(Taxa))*":" ~ .(Common))
     
     # # GLM
     # if(geos > 1) {
@@ -225,7 +221,7 @@
     # GAM
     if(geos > 1) {
       
-      res$mod <- stan_gamm4(cbind(success,trials - success) ~ s(year, k = 4) + geo2 + s(year, k = 4, by = geo2)
+      mod <- stan_gamm4(cbind(success,trials - success) ~ s(year, k = 4) + geo2 + s(year, k = 4, by = geo2)
                             , data = rrDf
                             , family = binomial()
                             , random = ~(1|cell)
@@ -235,7 +231,7 @@
       
     } else {
       
-      res$mod <- stan_gamm4(cbind(success,trials-success) ~ s(year, k = 4)
+      mod <- stan_gamm4(cbind(success,trials-success) ~ s(year, k = 4)
                             , data = rrDf
                             , random = ~ (1|cell)
                             , family = binomial()
@@ -245,80 +241,18 @@
       
     }
     
-    
-    res$pred <- mod$data %>%
-      distinct(year,geo2) %>%
-      dplyr::mutate(col = row.names(.)
-                    , success = 0
-                    , trials = 100 #round(median(res$modGAM$data$trials),0)
-                    ) %>%
-      dplyr::left_join(as_tibble(posterior_predict(mod
-                                                   , newdata = .
-                                                   , re.form = NA#insight::find_formula(res$modGAM)$random[[1]]
-                                                   )
-                                 ) %>%
-                         tibble::rownames_to_column(var = "row") %>%
-                         tidyr::gather(col,value,2:ncol(.))
-                       ) %>%
-      dplyr::mutate(rawValue = as.numeric(value)
-                    , value = rawValue/trials
-                    )
-    
-    res$res <- res$pred %>%
-      dplyr::group_by(year,geo2) %>%
-      dplyr::summarise(modMean = mean(value)
-                       , modMedian = quantile(value, 0.5)
-                       , modci90lo = quantile(value, 0.05)
-                       , modci90up = quantile(value, 0.95)
-                       , text = paste0(round(modMedian,2)," (",round(modci90lo,2)," to ",round(modci90up,2),")")
-                       ) %>%
-      dplyr::ungroup()
-    
-    res$plot <- res$mod$data %>%
-      distinct(year,geo2) %>%
-      tidybayes::add_fitted_draws(modGAM
-                                  , n = 100
-                                  , re_formula = NA
-                                  ) %>%
-      ggplot(aes(x = year)) +
-        geom_line(aes(y = .value, group = .draw), alpha = 0.05) +
-        geom_line(data = res
-                  , aes(y = modMean)
-                  , size = 2
-                  ) +
-        geom_point(data = rrDf %>%
-                     dplyr::group_by(year,geo2) %>%
-                     dplyr::summarise(success = sum(success)
-                                      , trials = n()
-                                      ) %>%
-                     dplyr::ungroup() %>%
-                     dplyr::mutate(prop = success/trials)
-                   , aes(y = prop
-                         , colour = trials
-                         )
-                   ) +
-        facet_wrap(~geo2) +
-        scale_colour_viridis_c() +
-        labs(title = plotTitles
-             , subtitle = "Thick line is median credible value for that year"
-             )
-    
-    write_rds(res,outFile)
+    write_rds(mod,outFile)
     
   }
   
   
-  ll <- function(Taxa,Common,rrDf) {
+  ll <- function(Taxa,rrDf) {
     
     print(Taxa)
     
     outFile <- fs::path(outDir,paste0("list-length_",Taxa,".rds"))
     
-    res <- list()
-    
     geos <- length(unique(rrDf$geo2))
-    
-    plotTitles <- bquote(~italic(.(Taxa))*":" ~ .(Common))
     
     # GLM
     # if(geos > 1) {
@@ -344,32 +278,44 @@
     # GAM
     if(geos > 1) {
       
-      res$mod <- stan_gamm4(cbind(success,trials - success) ~
-                              s(year, k = 4) +
-                              geo2 +
-                              logListLength +
-                              s(year, k = 4, by = geo2) +
-                              s(year, k = 4, by = logListLength) +
-                              geo2*logListLength
-                            , data = rrDf %>%
-                              dplyr::mutate(logListLength = log(listLength))
-                            , family = binomial()
-                            , random = ~(1|cell)
-                            , chains = if(testing) testChains else useChains
-                            , iter = if(testing) testIter else useIter
-                            )
+      mod <- stan_gamm4(cbind(success,trials - success) ~
+                          s(year, k = 4, bs = "ts") +
+                          s(year, k = 4, by = geo2, bs = "ts") +
+                          s(year, k = 4, by = logListLength, bs = "ts") +
+                          geo2*logListLength
+                        , data = rrDf %>%
+                          dplyr::mutate(logListLength = log(listLength))
+                        , family = binomial()
+                        , random = ~(1|cell)
+                        , chains = if(testing) testChains else useChains
+                        , iter = if(testing) testIter else useIter
+                        )
       
     } else {
       
-      res$mod <- stan_gamm4(cbind(success,trials-success) ~ s(year, k = 4)
-                            , data = rrDf
-                            , random = ~ (1|cell)
-                            , family = binomial()
-                            , chains = if(testing) testChains else useChains
-                            , iter = if(testing) testIter else useIter
-      )
+      mod <- stan_gamm4(cbind(success,trials-success) ~ s(year, k = 4, bs = "ts") +
+                          s(year, k = 4, by = logListLength, bs = "ts") +
+                          logListLength
+                        , data = rrDf %>%
+                          dplyr::mutate(logListLength = log(listLength))
+                        , random = ~ (1|cell)
+                        , family = binomial()
+                        , chains = if(testing) testChains else useChains
+                        , iter = if(testing) testIter else useIter
+                        )
       
     }
+    
+    write_rds(mod,outFile)
+    
+  }
+  
+  
+  mod_explore <- function(Taxa,Common,rrDf = "rrDf",mod) {
+    
+    res <- list()
+    
+    plotTitles <- bquote(~italic(.(Taxa))*":" ~ .(Common))
     
     res$pred <- rrDf %>%
       dplyr::distinct(geo1,geo2,year) %>%
@@ -379,9 +325,9 @@
                     , success = 0
                     , trials = 100
                     ) %>%
-      dplyr::left_join(as_tibble(posterior_predict(res$mod
+      dplyr::left_join(as_tibble(posterior_predict(mod
                                                    , newdata = .
-                                                   , re.form = NA#insight::find_formula(res$mod)$random
+                                                   , re.form = NA#insight::find_formula(mod)$random
                                                    )
                                  ) %>%
                          tibble::rownames_to_column(var = "row") %>%
@@ -394,7 +340,7 @@
     res$res <- res$pred %>%
       dplyr::group_by(year,geo1,geo2,listLength) %>%
       dplyr::summarise(n = n()
-                       , nCheck = nrow(as_tibble(res$mod))
+                       , nCheck = nrow(as_tibble(mod))
                        , modMean = mean(value)
                        , modMedian = quantile(value, 0.5)
                        , modci90lo = quantile(value, 0.05)
@@ -402,6 +348,8 @@
                        , text = paste0(round(modMedian,2)," (",round(modci90lo,2)," to ",round(modci90up,2),")")
                        ) %>%
       dplyr::ungroup()
+    
+    howManyDraws <- 200
     
     plotData <- rrDf %>%
       dplyr::distinct(geo1,geo2,year) %>%
@@ -419,33 +367,52 @@
                        , by = character()
                        ) %>%
       dplyr::mutate(length = paste0("At list length quantile ",probs," = ",listLength)) %>%
-      tidybayes::add_fitted_draws(res$mod
-                                  , n = 500
+      tidybayes::add_fitted_draws(mod
+                                  , n = howManyDraws
                                   , re_formula = NA
                                   )
     
-    res$plotLine <- plotData %>%
+    hasLL <- sum(grepl("listlength",tolower(names(mod$data))))>0
+    
+    p <- plotData %>%
       ggplot(aes(x = year, y = prop)) +
         geom_line(aes(y = .value, group = .draw), alpha = 0.05) +
-        geom_jitter(data = rrDf %>%
-                      dplyr::group_by(year,geo2,listLength) %>%
-                      dplyr::summarise(success = sum(success)
-                                       , trials = n()
-                                       ) %>%
-                      dplyr::ungroup() %>%
-                      dplyr::mutate(prop = success/trials)
-                    , aes(colour = listLength)
-                    , height = 0.025
-                    , width = 0.2
-                    ) +
         facet_wrap(~geo2) +
-        scale_colour_viridis_c() +
         theme(axis.text.x = element_text(angle = 90, vjust = 0.5, hjust=1)) +
-        labs(title = plotTitles
-             , subtitle = unique(plotData$length)
-             )
+        labs(title = plotTitles)
     
-    res$plotRibbon <- ggplot() +
+    if(hasLL) p <- p +
+      geom_jitter(data = rrDf %>%
+                   dplyr::group_by(year,geo2,listLength) %>%
+                   dplyr::summarise(success = sum(success)
+                                    , trials = n()
+                                    , prop = success/trials
+                                    )
+                 ,aes(year
+                      ,prop
+                      , colour = listLength
+                      )
+                 ) +
+      labs(colour = "List length"
+           , subtitle = paste0("List length corrected reporting rate.\nLines are ",howManyDraws," draws from posterior distribution.\n",unique(plotData$length))
+           )
+    
+    if(!hasLL) p <- p +
+      geom_jitter(data = rrDf %>%
+                   dplyr::group_by(year,geo2,listLength) %>%
+                   dplyr::summarise(success = sum(success)
+                                    , trials = n()
+                                    , prop = success/trials
+                                    )
+                 ,aes(year
+                      ,prop
+                      )
+                 ) +
+      labs(subtitle = paste0("Reporting rate.\nLines are ",howManyDraws," draws from posterior distribution."))
+    
+    res$plotLine <- p
+    
+    p <- ggplot() +
       geom_ribbon(data = res$res
                   , aes(year,modMean,ymin = modci90lo, ymax = modci90up)
                   , alpha = 0.4
@@ -455,6 +422,10 @@
                 , linetype = 1
                 , size = 1.5
                 ) +
+      facet_wrap(~geo2) +
+      labs(title = plotTitles)
+    
+    if(hasLL) p <- p +
       geom_point(data = rrDf %>%
                    dplyr::group_by(year,geo2,listLength) %>%
                    dplyr::summarise(success = sum(success)
@@ -463,20 +434,31 @@
                                     )
                  ,aes(year
                       ,prop
-                      ,colour = if(sum(grepl("listlength",tolower(names(res$mod$data))))>0) listLength else "none"
+                      , colour = listLength
                       )
                  ) +
-      facet_wrap(~geo2) +
-      scale_colour_viridis_c() +
-      labs(title = plotTitles
-           , subtitle = unique(plotData$length)
-           , colour = "List length"
+      labs(colour = "List length"
+           , subtitle = paste0("List length corrected reporting rate.\nMedian (thick line) and 90% credible intervals (shaded).\n",unique(plotData$length))
            )
     
-    write_rds(res,outFile)
+    if(!hasLL) p <- p +
+      geom_point(data = rrDf %>%
+                   dplyr::group_by(year,geo2,listLength) %>%
+                   dplyr::summarise(success = sum(success)
+                                    , trials = n()
+                                    , prop = success/trials
+                                    )
+                 ,aes(year
+                      ,prop
+                      )
+                 ) +
+      labs(subtitle = "Reporting rate.\nMedian (thick line) and 90% credible intervals (shaded).")
+    
+    res$plotRibbon <- p
+    
+    return(res)
     
   }
-  
   
   
   
@@ -548,6 +530,140 @@
     
   }
   
+  
+  make_year_difference_df <- function(Taxa
+                                      ,Common
+                                      ,df
+                                      ,mod
+                                      ,modType = c("Reporting rate"
+                                                 ,"List length corrected reporting rate"
+                                                 ,"Occupancy"
+                                                 )
+                                      ) {
+    
+    df %>%
+      dplyr::distinct(geo1,geo2) %>%
+      dplyr::full_join(testYears
+                       , by = character()
+                       ) %>%
+      dplyr::mutate(listLength = median(df$listLength)
+                    , logListLength = log(listLength)
+                    , col = row.names(.)
+                    , success = 0
+                    , trials = 100
+                    , nCheck = nrow(as_tibble(mod))
+                    , modType = modType
+                    , Taxa = Taxa
+                    , Common = Common
+                    ) %>%
+      dplyr::left_join(as_tibble(posterior_predict(mod
+                                                   , newdata = .
+                                                   , re.form = NA#insight::find_formula(mod)$random
+                                                   )
+                                 ) %>%
+                         tibble::rownames_to_column(var = "row") %>%
+                         tidyr::gather(col,value,2:ncol(.))
+                       ) %>%
+      dplyr::select(-c(col)) %>%
+      dplyr::mutate(value = value/trials) %>%
+      tidyr::pivot_wider(names_from = "type"
+                         , values_from = c("year","value")
+                         ) %>%
+      setNames(gsub("\\d{4}","",names(.))) %>%
+      dplyr::mutate(diff = as.numeric(value_recent-value_reference))
+    
+  }
+  
+  year_difference <-  function(yearDiffDf
+                               ,groups = c("Taxa","Common","geo1","geo2")
+                               ) {
+    
+    yearDiffDf %>%
+      dplyr::group_by(across(any_of(c("type","modType",groups)))) %>%
+      dplyr::summarise(n = n()
+                       , nCheck = unique(nCheck)
+                       , lower = sum(diff < 0)/nCheck
+                       , higher = sum(diff > 0)/nCheck
+                       , meanDiff = mean(diff)
+                       , medianDiff = median(diff)
+                       , cilo = quantile(diff, probs = 0.05)
+                       , ciup = quantile(diff, probs = 0.95)
+                       , reference = unique(year_reference)
+                       , recent = unique(year_recent)
+                       ) %>%
+      dplyr::ungroup() %>%
+      dplyr::mutate(likelihood = map(lower
+                                     , ~cut(.
+                                            , breaks = c(0,luLikelihood$maxVal)
+                                            , labels = luLikelihood$likelihood
+                                            , include.lowest = TRUE
+                                            )
+                                     )
+                    ) %>%
+      tidyr::unnest(cols = c(likelihood)) %>%
+      dplyr::mutate(text = paste0(tolower(likelihood)
+                                  , " to be lower in "
+                                  , geo2
+                                  , " IBRA Subregion ("
+                                  , 100*round(lower,2)
+                                  , "% chance) in "
+                                  , reference
+                                  , " compared with "
+                                  , recent
+                                  )
+                    , text = gsub("in Kangaroo Island","on Kangaroo Island",text)
+                    )
+    
+  }
+  
+  
+  year_difference_plot <- function(yearDiffDf) {
+    
+    plotTitles <- bquote(~italic(.(unique(yearDiffDf$Taxa)))*":" ~ .(unique(yearDiffDf$Common)))
+    
+    modType <- unique(yearDiffDf$modType)
+    recent <- unique(yearDiffDf$year_recent)
+    reference <- unique(yearDiffDf$year_reference)
+    
+    yearDiffDf %>%
+      dplyr::group_by(geo2) %>%
+      dplyr::mutate(lower = sum(diff<0)/nCheck) %>%
+      dplyr::ungroup() %>%
+      dplyr::mutate(likelihood = map(lower
+                                     , ~cut(.
+                                            , breaks = c(0,luLikelihood$maxVal)
+                                            , labels = luLikelihood$likelihood
+                                            , include.lowest = TRUE
+                                            )
+                                     )
+                    ) %>%
+      tidyr::unnest(cols = c(likelihood)) %>%
+      dplyr::mutate(likelihood = fct_expand(likelihood,levels(luLikelihood$likelihood))) %>%
+      ggplot(aes(diff,geo2,fill = likelihood)) +
+        geom_density_ridges() +
+        geom_vline(aes(xintercept = 0)
+                   , linetype = 2
+                   , colour = "red"
+                   ) +
+        scale_fill_viridis_d(drop = FALSE) +
+        labs(title = plotTitles
+             , subtitle = paste0("Difference in "
+                                 ,recent
+                                 ," "
+                                 ,tolower(modType)
+                                 ," compared to "
+                                 ,reference
+                                 )
+             , x = "Difference"
+             , y = "IBRA Subregion"
+             , fill = "Likelihood of decrease"
+             , caption = paste0("Red dotted line indicates no change from ",reference)
+             )
+    
+  }
+  
+  
+    
   make_year_effect_df <- function(mod) {
     
    geos <- length(unique(mod$data$geo2))
@@ -606,6 +722,7 @@
   
   }
     
+    
   year_effect <- function(yearEffectDf,groups = "geo2") {
     
     nCheck <- yearEffectDf %>%
@@ -620,8 +737,6 @@
       dplyr::group_by(!!ensym(groups)) %>%
       dplyr::summarise(n = n()
                        , nCheck = nCheck
-                       , increasing = sum(yearEff > 0)/nCheck
-                       , decreasing = sum(yearEff < 0)/nCheck
                        , meanEff = mean(yearEff)
                        , medianEff = median(yearEff)
                        , cilo = quantile(yearEff, probs = 0.05)
@@ -733,8 +848,7 @@
   if(nrow(todo) > 0) {
     
     future_pwalk(list(todo$Taxa
-                      ,todo$Common
-                      ,todo$data
+                      , todo$data
                       )
                ,rr
                )
@@ -752,10 +866,9 @@
   if(nrow(todo) > 0) {
     
     future_pwalk(list(todo$Taxa
-                        ,todo$Common
-                        ,todo$data
-                        )
-                   ,ll
+                      ,todo$data
+                      )
+                 ,ll
                  )
     
   }
@@ -770,7 +883,7 @@
     dplyr::filter(exists) %>%
     dplyr::mutate(rr = map(rr,read_rds)
                   , ll = map(ll,read_rds)
-                  , rrExp = pmap(list(Taxa
+                  , rrPreExp = pmap(list(Taxa
                                       , Common
                                       , data
                                       )
@@ -786,12 +899,45 @@
                   #                )
                   , rrResid = map(rr,~add_residuals(.$mod))
                   , llResid = map(ll,~add_residuals(.$mod))
-                  , rrYearEffDf = map(rr,~.$mod %>% make_year_effect_df)
-                  , llYearEffDf = map(ll,~.$mod %>% make_year_effect_df)
-                  , rrYearEff = map(rrYearEffDf,year_effect,groups = "geo2")
-                  , llYearEff = map(llYearEffDf,year_effect,groups = "geo2")
-                  , rrYearEffPlot = map(rrYearEffDf,year_effect_plot)
-                  , llYearEffPlot = map(llYearEffDf,year_effect_plot)
+                  , rrPostExp = pmap(list(Taxa
+                                         , Common
+                                         , data
+                                         , rr
+                                         )
+                                    ,mod_explore
+                                    )
+                  , llPostExp = pmap(list(Taxa
+                                          , Common
+                                          , data
+                                          , ll
+                                          )
+                                     , mod_explore
+                                     )
+                  , rrYearDiffDf = pmap(list(Taxa
+                                             , Common
+                                             , data
+                                             , rr
+                                             , modType = "Reporting rate"
+                                             )
+                                        ,make_year_difference_df
+                                        )
+                  , rrYearDiff = map(rrYearDiffDf,year_difference)
+                  , rrYearDiffPlot = map(rrYearDiffDf,year_difference_plot)
+                  , llYearDiffDf = pmap(list(Taxa
+                                             , Common
+                                             , data
+                                             , ll
+                                             , modType = "Reporting rate"
+                                             )
+                                        ,make_year_difference_df
+                                        )
+                  , llYearDiff = map(llYearDiffDf,year_difference)
+                  , llYearDiffPlot = map(llYearDiffDf,year_difference_plot)
+                  #, llYearEffDf = map(ll,~.$mod %>% make_year_effect_df)
+                  #, rrYearEff = map(rrYearEffDf,year_effect,groups = "geo2")
+                  #, llYearEff = map(llYearEffDf,year_effect,groups = "geo2")
+                  #, rrYearEffPlot = map(rrYearEffDf,year_effect_plot)
+                  #, llYearEffPlot = map(llYearEffDf,year_effect_plot)
                   )
    
   taxaModsFull$overall <- taxaModsFull %>%
