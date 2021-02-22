@@ -85,11 +85,15 @@
                   , Rank = fct_expand(Rank,"Class","Order")
                   , Rank = factor(Rank
                                   , levels = c("Kingdom","Phylum","Family","Genus","Species","Subspecies","Variety","Form")
-                                  , ordered = TRUE)
+                                  , ordered = TRUE
+                                  )
+                  ) %>%
+    dplyr::mutate(Taxa = if_else(originalName == "Pandion haliaetus","Pandion cristatus",Taxa)
+                  , Common = if_else(grepl("^Osprey$",Common),"Eastern Osprey",Common)
                   )
   
   luTax <- luGBIF %>%
-    dplyr::distinct(Taxa,Common,Kingdom,Phylum,Class,Order,Family,Genus,Species)
+    dplyr::distinct(Taxa,Common,Kingdom,Phylum,Class,Order,Family,Genus)
   
   luInd <- taxaBDBSA %>%
     dplyr::left_join(luGBIF, by = c("SPECIES" = "id")) %>%

@@ -5,48 +5,49 @@
   
   # Sampling unit, or list, for rr and ll is based on a cell within a year. Thus, success is presence within a cell in a year
   
-  useScale <- c("geo1","geo2","cell") #in order
+  fullScale <- c("geo1","geo2","cell","site") #in order
+  summaryScale <- fullScale[-length(fullScale)]
   
   trials <- dat %>%
-    dplyr::distinct(year,!!ensym(taxGroup),across(any_of(useScale))) %>%
-    dplyr::group_by(year,!!ensym(taxGroup),across(any_of(useScale))) %>%
+    dplyr::distinct(year,!!ensym(taxGroup),across(any_of(fullScale))) %>%
+    dplyr::group_by(year,!!ensym(taxGroup),across(any_of(fullScale))) %>%
     dplyr::summarise(trials = n()) %>%
     dplyr::ungroup()
   
   success <- dat %>%
-    dplyr::distinct(Taxa,year,!!ensym(taxGroup),across(any_of(useScale))) %>%
-    dplyr::group_by(Taxa,year,!!ensym(taxGroup),across(any_of(useScale))) %>%
+    dplyr::distinct(Taxa,year,!!ensym(taxGroup),across(any_of(fullScale))) %>%
+    dplyr::group_by(Taxa,year,!!ensym(taxGroup),across(any_of(fullScale))) %>%
     dplyr::summarise(success = n()) %>%
     dplyr::ungroup()
   
   datFiltered <- trials %>%
     dplyr::left_join(success) %>%
-    dplyr::mutate(list = paste0(year,"-",!!ensym(taxGroup),"-",useScale[length(useScale)])) %>%
+    dplyr::mutate(list = paste0(year,"-",!!ensym(taxGroup),"-",get(fullScale[length(fullScale)]))) %>%
     dplyr::add_count(list, name = "listLength") %>%
     filter_taxa_data()
   
   trials <- datFiltered %>%
-    dplyr::distinct(year,!!ensym(taxGroup),across(any_of(useScale))) %>%
-    dplyr::group_by(year,!!ensym(taxGroup),across(any_of(useScale))) %>%
+    dplyr::distinct(year,!!ensym(taxGroup),across(any_of(fullScale))) %>%
+    dplyr::group_by(year,!!ensym(taxGroup),across(any_of(fullScale))) %>%
     dplyr::summarise(trials = n()) %>%
     dplyr::ungroup()
   
   success <- datFiltered %>%
-    dplyr::distinct(Taxa,year,!!ensym(taxGroup),across(any_of(useScale))) %>%
-    dplyr::group_by(Taxa,year,!!ensym(taxGroup),across(any_of(useScale))) %>%
+    dplyr::distinct(Taxa,year,!!ensym(taxGroup),across(any_of(fullScale))) %>%
+    dplyr::group_by(Taxa,year,!!ensym(taxGroup),across(any_of(fullScale))) %>%
     dplyr::summarise(success = n()) %>%
     dplyr::ungroup()
   
   datForRR <- trials %>%
     dplyr::left_join(success) %>%
-    dplyr::mutate(list = paste0(year,"-",!!ensym(taxGroup),"-",UQ(rlang::sym(useScale[length(useScale)])))) %>%
+    dplyr::mutate(list = paste0(year,"-",!!ensym(taxGroup),"-",get(useScale[length(useScale)]))) %>%
     dplyr::add_count(list, name = "listLength")
   
   taxaGeo <- datForRR %>%
     dplyr::distinct(!!ensym(taxGroup)
                     ,Taxa
                     ,across(any_of(useScale))
-                    ) 
+                    )
   
   #-------RR prep---------
   
@@ -58,10 +59,11 @@
     purrr::when(testing ~ (.) %>% dplyr::filter(Taxa %in% tests)
                 , !testing ~ (.)
                 ) %>%
-    tidyr::nest(data = c(geo1,geo2,year,cell,list,listLength,success,trials)) %>%
+    tidyr::nest(data = c(geo1,geo2,year,cell,site,list,listLength,success,trials)) %>%
     dplyr::left_join(luTax %>%
                        dplyr::select(Taxa,Common)
                      )
+  
   
   
   #------Functions--------
@@ -374,9 +376,21 @@
     
     hasLL <- sum(grepl("listlength",tolower(names(mod$data))))>0
     
+    rrSubtitle <- paste0("Reporting rate.\nDashed red lines indicate years for comparison (see text).")
+    llSubtitle <- paste0("List length corrected reporting rate.\nDashed red lines indicate years for comparison (see text).")
+    
+    rrSubtitleLine <- paste0(rrSubtitle,"\nLines are ",howManyDraws," draws from posterior distribution.")
+    llSubtitleLine <- paste0(llSubtitle,"\nLines are ",howManyDraws," draws from posterior distribution.\n",unique(plotData$length))
+
+    rrSubtitleRibbon <- paste0(rrSubtitle,"\nMedian (thick line) and 90% credible intervals (shaded).")
+    llSubtitleRibbon <- paste0(llSubtitle,"\nMedian (thick line) and 90% credible intervals (shaded).")
+    
+    # plotLine
+    
     p <- plotData %>%
       ggplot(aes(x = year, y = prop)) +
         geom_line(aes(y = .value, group = .draw), alpha = 0.05) +
+        geom_vline(xintercept = testYears$year, linetype = 2, colour = "red") +
         facet_wrap(~geo2) +
         theme(axis.text.x = element_text(angle = 90, vjust = 0.5, hjust=1)) +
         labs(title = plotTitles)
@@ -393,8 +407,9 @@
                       , colour = listLength
                       )
                  ) +
+      scale_colour_viridis_c() +
       labs(colour = "List length"
-           , subtitle = paste0("List length corrected reporting rate.\nLines are ",howManyDraws," draws from posterior distribution.\n",unique(plotData$length))
+           , subtitle = llSubtitleLine
            )
     
     if(!hasLL) p <- p +
@@ -408,9 +423,12 @@
                       ,prop
                       )
                  ) +
-      labs(subtitle = paste0("Reporting rate.\nLines are ",howManyDraws," draws from posterior distribution."))
+      labs(subtitle = rrSubtitleLine)
     
     res$plotLine <- p
+    
+    
+    # plotRibbon
     
     p <- ggplot() +
       geom_ribbon(data = res$res
@@ -422,6 +440,7 @@
                 , linetype = 1
                 , size = 1.5
                 ) +
+      geom_vline(xintercept = testYears$year, linetype = 2, colour = "red") +
       facet_wrap(~geo2) +
       labs(title = plotTitles)
     
@@ -437,8 +456,9 @@
                       , colour = listLength
                       )
                  ) +
+      scale_colour_viridis_c() +
       labs(colour = "List length"
-           , subtitle = paste0("List length corrected reporting rate.\nMedian (thick line) and 90% credible intervals (shaded).\n",unique(plotData$length))
+           , subtitle = llSubtitleRibbon
            )
     
     if(!hasLL) p <- p +
@@ -452,7 +472,7 @@
                       ,prop
                       )
                  ) +
-      labs(subtitle = "Reporting rate.\nMedian (thick line) and 90% credible intervals (shaded).")
+      labs(subtitle = rrSubtitleRibbon)
     
     res$plotRibbon <- p
     
@@ -606,10 +626,7 @@
                                   , geo2
                                   , " IBRA Subregion ("
                                   , 100*round(lower,2)
-                                  , "% chance) in "
-                                  , reference
-                                  , " compared with "
-                                  , recent
+                                  , "% chance)"
                                   )
                     , text = gsub("in Kangaroo Island","on Kangaroo Island",text)
                     )
@@ -660,6 +677,67 @@
              , caption = paste0("Red dotted line indicates no change from ",reference)
              )
     
+  }
+  
+  year_difference_overall <- function(Taxa,Common,rrYearDiffDf,llYearDiffDf) {
+    
+    plotTitles <- bquote(~italic(.(Taxa))*":" ~ .(Common))
+    
+    res <- list()
+    
+    res$yearDiffOverallDf <- rrYearDiffDf %>%
+      dplyr::bind_rows(llYearDiffDf)
+    
+    res$yearDiffOverallRes <- res$yearDiffOverallDf %>%
+      dplyr::summarise(n = n()
+                       , increase = sum(diff > 0)/n
+                       , decline = sum(diff < 0)/n
+                       , meanEff = mean(diff)
+                       , medianEff = median(diff)
+                       , cilo = quantile(diff, probs = 0.05)
+                       , ciup = quantile(diff, probs = 0.95)
+                       ) %>%
+      dplyr::mutate(likelihood = map(decline
+                                     , ~cut(.
+                                            , breaks = c(0,luLikelihood$maxVal)
+                                            , labels = luLikelihood$likelihood
+                                            , include.lowest = TRUE
+                                            )
+                                     )
+                    ) %>%
+      tidyr::unnest(cols = c(likelihood)) %>%
+      dplyr::mutate(text = paste0(tolower(likelihood)
+                                  , " to be declining ("
+                                  , 100*round(decline,2)
+                                  , "% chance)"
+                                  )
+                    )
+    
+    res$yearDiffOverallPlot <- res$yearDiffOverallDf %>%
+      dplyr::mutate(likelihood = res$yearDiffOverallRes$likelihood) %>%
+      ggplot(aes(diff,fill = likelihood)) +
+        geom_density() +
+        geom_vline(aes(xintercept = 0)
+                   , linetype = 2
+                   , colour = "red"
+                   ) +
+        scale_fill_viridis_d(drop = FALSE) +
+        labs(title = plotTitles
+             , subtitle = paste0("Difference in "
+                                 ,recent
+                                 ," "
+                                 ,tolower(modType)
+                                 ," compared to "
+                                 ,reference
+                                 )
+             , x = "Difference"
+             , y = "IBRA Subregion"
+             , fill = "Likelihood of decrease"
+             , caption = paste0("Red dotted line indicates no change from ",reference)
+             )
+    
+    return(res)
+      
   }
   
   
@@ -781,59 +859,7 @@
     
   }
   
-  make_year_comparison_df <- function(mod,years = c(2000,2020)) {
-    
-    res$mod$data %>%
-      dplyr::distinct(geo1,geo2) %>%
-      dplyr::full_join(tibble(year = years)
-                       , by = character()
-                       ) %>%
-      dplyr::mutate(listLength = median(res$mod$data$listLength)
-                    , col = row.names(.)
-                    ) %>%
-      dplyr::left_join(as_tibble(posterior_predict(res$mod
-                                                   , newdata = .
-                                                   , re.form = NA#insight::find_formula(res$mod)$random
-                                                   , type = "response"
-                                                   )
-                                 ) %>%
-                         tibble::rownames_to_column(var = "row") %>%
-                         tidyr::gather(col,value,2:ncol(.))
-                       )
-    
-    
-  }
   
-  overall_year_effect <- function(dfRow) {
-    
-    dfRow %>%
-      tidyr::pivot_longer(1:ncol(.)) %>%
-      tidyr::unnest(cols = c(value)) %>%
-      dplyr::summarise(n = n()
-                       , increase = sum(yearEff > 0)/n
-                       , decline = sum(yearEff < 0)/n
-                       , meanEff = mean(yearEff)
-                       , medianEff = median(yearEff)
-                       , cilo = quantile(yearEff, probs = 0.05)
-                       , ciup = quantile(yearEff, probs = 0.95)
-                       ) %>%
-      dplyr::mutate(likelihood = map(decline
-                                     , ~cut(.
-                                            , breaks = c(0,luLikelihood$maxVal)
-                                            , labels = luLikelihood$likelihood
-                                            , include.lowest = TRUE
-                                            )
-                                     )
-                    ) %>%
-      tidyr::unnest(cols = c(likelihood)) %>%
-      dplyr::mutate(text = paste0(tolower(likelihood)
-                                  , " to be declining ("
-                                  , 100*round(decline,2)
-                                  , "% chance)"
-                                  )
-                    )
-    
-  }
  
  #------Run models-------
  
@@ -938,16 +964,14 @@
                   #, llYearEff = map(llYearEffDf,year_effect,groups = "geo2")
                   #, rrYearEffPlot = map(rrYearEffDf,year_effect_plot)
                   #, llYearEffPlot = map(llYearEffDf,year_effect_plot)
+                  , overall = pmap(list(Taxa
+                                        , Common
+                                        , rrYearDiffDf
+                                        , llYearDiffDf
+                                        )
+                                   , year_difference_overall
+                                   )
                   )
    
-  taxaModsFull$overall <- taxaModsFull %>%
-   dplyr::select(contains("YearEffDf")) %>%
-   split(seq(nrow(.))) %>%
-   purrr::map(overall_year_effect) %>%
-   tibble() %>%
-   tidyr::unnest(cols = 1) %>%
-   dplyr::pull(text)
-
-  
   timer$stop("rrll", comment = paste0("models run for ",nrow(taxaModsFull)," taxa"))
   

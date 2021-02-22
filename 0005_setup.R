@@ -20,9 +20,10 @@
   taxGroup <- "Order"
   
   # Length of one side of grid in metres
-  gridSize <- 5000
+  innerGrid <- 100
+  outerGrid <- 50*innerGrid
   
-  minYear <- 1980 #lubridate::year(Sys.time()) - 30
+  minYear <- 1985 #lubridate::year(Sys.time()) - 30
   
   quantProbs <- c(0.05, 0.5, 0.95)
   
@@ -43,10 +44,13 @@
   
   # Years at which to predict (and compare change)
   testYears <- tibble::tribble(~type, ~year
-                       , "reference", 1995
+                       , "reference", 1990
                        , "recent", 2020
                        ) %>%
     tidyr::unnest(cols = c(year))
+  
+  reference <- testYears$year[testYears$type == "reference"]
+  recent <- testYears$year[testYears$type == "recent"]
 
 #-----Packages-----
   
@@ -255,8 +259,8 @@
   rstan_options(auto_write = TRUE)
   Sys.setenv(LOCAL_CPPFLAGS = '-march=native')
   
-  testChains <- 2
-  testIter <- 500
+  testChains <- 3
+  testIter <- 1000
   
   useChains <- 4
   useIter <- 2000

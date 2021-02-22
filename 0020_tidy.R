@@ -37,20 +37,32 @@
   
   #-------Add geo context-------
   
-  patchGeo <- taxaAllDatesAOITax %>%
+  siteGeo <- taxaAllDatesAOITax %>%
     dplyr::distinct(LONGITUDE,LATITUDE) %>%
     st_as_sf(coords = c("LONGITUDE","LATITUDE"), crs = 4326, remove = FALSE) %>%
     st_transform(crs = crs(polys))
   
-  patchExtent <- extent(patchGeo)
+  siteExtent <- extent(siteGeo)
   
-  patchRaster <- raster(patchExtent
-                       , res = c(gridSize,gridSize)
-                       , crs = crs(polys)
-                       )
+  innerRaster <- raster(siteExtent
+                      , res = c(innerGrid,innerGrid)
+                      , crs = crs(polys)
+                      )
   
-  patchGeoContext <- patchGeo %>%
-    dplyr::mutate(cell = cellFromXY(patchRaster,as_Spatial(patchGeo$geometry))) %>%
+  outerRaster <- raster(siteExtent
+                      , res = c(outerGrid,outerGrid)
+                      , crs = crs(polys)
+                      )
+  
+   # <- raster(siteExtent
+   #                     , res = c(gridSize,gridSize)
+   #                     , crs = crs(polys)
+   #                     )
+  
+  siteGeoContext <- siteGeo %>%
+    dplyr::mutate(site = cellFromXY(innerRaster,as_Spatial(siteGeo$geometry))
+                  , cell = cellFromXY(outerRaster,as_Spatial(siteGeo$geometry))
+                  ) %>%
     st_join(ibraSub
             , join = st_intersects
             ) %>%
@@ -62,15 +74,18 @@
     dplyr::filter(!is.na(geo1)
                   , !is.na(geo2)
                   , !is.na(cell)
+                  , !is.na(site)
                   ) %>%
-    dplyr::distinct(LATITUDE,LONGITUDE,cell,geo1,geo2)
+    dplyr::distinct(LATITUDE,LONGITUDE,site,cell,geo1,geo2)
   
   
   #------dat--------
   dat <- taxaAllDatesAOITax %>%
-    dplyr::inner_join(patchGeoContext) %>%
-    dplyr::distinct(!!ensym(taxGroup),Taxa,year,month,yearmon,geo1,geo2,cell) %>%
-    dplyr::mutate(cell = as.factor(cell))
+    dplyr::inner_join(siteGeoContext) %>%
+    dplyr::distinct(!!ensym(taxGroup),Taxa,year,month,yearmon,geo1,geo2,cell,site) %>%
+    dplyr::mutate(cell = as.factor(cell)
+                  , site = as.factor(site)
+                  )
   
   
   timer$stop("tidy", comment = paste0("tidy took records from ",nrow(taxaAll)," to ",nrow(dat)))
