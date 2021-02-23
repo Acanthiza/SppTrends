@@ -8,19 +8,21 @@ if(testing) {
   orders <- c(NULL
               #, "Anseriformes"
               #, "Charadriiformes"
-              , "Accipitriformes"
+              #, "Accipitriformes"
               )
   
   genera <- c("Melithreptus"
+              , "Pandion"
+              , "Haliaeetus"
               #, "Cacatua"
               #, "Myiagra"
               #, "Pseudonaja"
               #, "Pogona"
               #, "Vespadelus"
-              , "Macropus"
-              , "Pachycephala"
-              , "Phylidonyris"
-              , "Climacteris"
+              #, "Macropus"
+              #, "Pachycephala"
+              #, "Phylidonyris"
+              #, "Climacteris"
               )
   
   testOrder <- luTax %>%
@@ -29,8 +31,7 @@ if(testing) {
   testGenus <- luTax %>%
     dplyr::filter(Genus %in% genera)
   
-  tests <- c(testOrder$Taxa,testGenus$Taxa) %>%
-    grep()
+  tests <- c(testOrder$Taxa,testGenus$Taxa)
   
 }
   

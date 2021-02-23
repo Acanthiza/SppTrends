@@ -54,11 +54,6 @@
                       , crs = crs(polys)
                       )
   
-   # <- raster(siteExtent
-   #                     , res = c(gridSize,gridSize)
-   #                     , crs = crs(polys)
-   #                     )
-  
   siteGeoContext <- siteGeo %>%
     dplyr::mutate(site = cellFromXY(innerRaster,as_Spatial(siteGeo$geometry))
                   , cell = cellFromXY(outerRaster,as_Spatial(siteGeo$geometry))
@@ -80,7 +75,7 @@
   
   
   #------dat--------
-  dat <- taxaAllDatesAOITax %>%
+  datTidy <- taxaAllDatesAOITax %>%
     dplyr::inner_join(siteGeoContext) %>%
     dplyr::distinct(!!ensym(taxGroup),Taxa,year,month,yearmon,geo1,geo2,cell,site) %>%
     dplyr::mutate(cell = as.factor(cell)

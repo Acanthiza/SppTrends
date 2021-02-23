@@ -9,11 +9,11 @@
   
   testing <- T
   testRmd <- F
-  commitToGit <- F
+  commitToGit <- T
   
   getNewData <- FALSE
   
-  runReason <- paste0("'Change' is now comparison between a reference year and a recent year. Testing = ",testing,".")
+  runReason <- paste0("Changed record aggregation back to just cell. Testing = ",testing,".")
   
   dir() %>%
     grep("^\\d{4}_.*\\.R$",.,value=TRUE) %>%

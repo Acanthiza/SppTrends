@@ -12,8 +12,8 @@
   polyBuffer <- 0
   
   # What is the area of interest (AOI) for this analysis?
-  aoiName <- c("FLB","KAN")
-  aoiFullName <- "MLR"
+  aoiName <- c("FLB","KAN","EYB","MDD","NCP","SVP")
+  aoiFullName <- "agricultural zone"
   Statewide <- F
   
   # Taxonomic grouping

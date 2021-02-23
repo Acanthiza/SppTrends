@@ -5,7 +5,7 @@
   
   # Sampling unit, or list, for rr and ll is based on a cell within a year. Thus, success is presence within a cell in a year
   
-  fullScale <- c("geo1","geo2","cell","site") #in order
+  fullScale <- c("geo1","geo2","cell") #in order
   summaryScale <- fullScale[-length(fullScale)]
   
   trials <- dat %>%
@@ -38,20 +38,20 @@
     dplyr::summarise(success = n()) %>%
     dplyr::ungroup()
   
-  datForRR <- trials %>%
+  datForAnalysis <- trials %>%
     dplyr::left_join(success) %>%
-    dplyr::mutate(list = paste0(year,"-",!!ensym(taxGroup),"-",get(useScale[length(useScale)]))) %>%
+    dplyr::mutate(list = paste0(year,"-",!!ensym(taxGroup),"-",get(fullScale[length(fullScale)]))) %>%
     dplyr::add_count(list, name = "listLength")
   
   taxaGeo <- datForRR %>%
     dplyr::distinct(!!ensym(taxGroup)
                     ,Taxa
-                    ,across(any_of(useScale))
+                    ,across(any_of(fullScale))
                     )
   
   #-------RR prep---------
   
-  datRR <- datForRR %>%
+  dat <- datForAnalyais %>%
     dplyr::inner_join(taxaGeo) %>%
     tidyr::pivot_wider(names_from = "Taxa", values_from = "success", values_fill = 0) %>%
     tidyr::pivot_longer(cols = any_of(unique(taxaGeo$Taxa)),names_to = "Taxa", values_to = "success") %>%
@@ -59,7 +59,7 @@
     purrr::when(testing ~ (.) %>% dplyr::filter(Taxa %in% tests)
                 , !testing ~ (.)
                 ) %>%
-    tidyr::nest(data = c(geo1,geo2,year,cell,site,list,listLength,success,trials)) %>%
+    tidyr::nest(data = c(any_of(fullScale),year,list,listLength,success,trials)) %>%
     dplyr::left_join(luTax %>%
                        dplyr::select(Taxa,Common)
                      )
@@ -723,11 +723,9 @@
                    ) +
         scale_fill_viridis_d(drop = FALSE) +
         labs(title = plotTitles
-             , subtitle = paste0("Difference in "
+             , subtitle = paste0("Distribution of credible values for change between "
                                  ,recent
-                                 ," "
-                                 ,tolower(modType)
-                                 ," compared to "
+                                 ," and "
                                  ,reference
                                  )
              , x = "Difference"
