@@ -148,35 +148,23 @@
                   , exists = map_lgl(mod,file.exists)
                   ) %>%
     dplyr::filter(exists) %>%
-    dplyr::mutate(mod = map(mod,read_rds)
-                  , preExp = pmap(list(Taxa
-                                       , Common
-                                       , data
-                                       )
-                                  ,mod_explore_pre
+    dplyr::mutate(mod = map(mod,read_rds)) %>%
+    dplyr::mutate(res = pmap(list(Taxa
+                                  , Common
+                                  , data
+                                  , mod
+                                  , modType = "List length"
                                   )
-                  , resid = map2(mod,data,add_residuals)
-                  , postExp = pmap(list(Taxa
-                                        , Common
-                                        , data
-                                        , mod
-                                        )
-                                   ,mod_explore_post
-                                   )
-                  , yearDiffDf = pmap(list(Taxa
-                                           , Common
-                                           , data
-                                           , mod
-                                           , modType = "Reporting rate"
-                                           )
-                                      ,make_year_difference_df
-                                      )
-                  , yearDiff = map(yearDiffDf,year_difference)
-                  , yearDiffPlot = map(yearDiffDf,year_difference_plot)
+                             , mod_explore
+                             )
                   )
   
-  taxaMods <- taxaMods %>%
-    dplyr::left_join(taxaModsLL)
+  taxaModsOverall <- taxaMods %>%
+    dplyr::full_join(taxaModsLL %>%
+                       dplyr::select(Taxa,where(is.list))
+                     , by = c("Taxa")
+                     , suffix = c("RR","LL")
+                     )
   
   timer$stop("ll", comment = paste0("Reporting rate models run for "
                                     ,nrow(taxaMods)

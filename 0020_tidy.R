@@ -92,7 +92,8 @@
     dplyr::distinct(!!ensym(taxGroup),Taxa,year,month,yearmon,geo1,geo2,cell,site) %>%
     dplyr::mutate(cell = as.factor(cell)
                   , site = as.factor(site)
-                  )
+                  ) %>%
+    dplyr::left_join(luTax[,c("Taxa","Common")])
   
   
   timer$stop("tidy", comment = paste0("tidy took records from ",nrow(taxaAll)," to ",nrow(datTidy)))

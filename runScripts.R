@@ -4,8 +4,8 @@
   library(magrittr)
   
   runFrom <- 0
-  runTo <- 32
-  excludes <- 35
+  runTo <- 50
+  excludes <- 34
   
   testing <- T
   testRmd <- F
@@ -13,7 +13,7 @@
   
   getNewData <- FALSE
   
-  runReason <- paste0("Split scripts by analysis. Testing = ",testing,".")
+  runReason <- paste0("Update to Rmd after overhaul of individual scripts. Testing = ",testing,".")
   
   dir() %>%
     grep("^\\d{4}_.*\\.R$",.,value=TRUE) %>%

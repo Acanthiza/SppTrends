@@ -9,10 +9,11 @@ if(testing) {
               #, "Anseriformes"
               #, "Charadriiformes"
               #, "Accipitriformes"
+              , "Diprotodontia"
               )
   
   genera <- c(NULL
-              #, "Melithreptus"
+              , "Melithreptus"
               , "Pandion"
               , "Haliaeetus"
               #, "Cacatua"
@@ -21,9 +22,9 @@ if(testing) {
               #, "Pogona"
               #, "Vespadelus"
               #, "Macropus"
-              #, "Pachycephala"
+              , "Pachycephala"
               #, "Phylidonyris"
-              #, "Climacteris"
+              , "Climacteris"
               )
   
   testOrder <- luTax %>%

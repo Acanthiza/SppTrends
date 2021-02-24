@@ -61,7 +61,7 @@ Total tidied records: `r format(nrow(dat),big.mark=",")`.
 
 ```{r analysis}
 
-  if(!exists("taxaModsFull")) source("0030_Analysis.R")
+  if(!exists("taxaModsOverall")) source(grep("analysis",dir(),value = TRUE))
 
 ```
 
@@ -69,13 +69,13 @@ Total tidied records: `r format(nrow(dat),big.mark=",")`.
 
   taxGroupExp = NULL
 
-  taxGroupNames <- taxaModsFull %>%
+  taxGroupNames <- taxaModsOverall %>%
     dplyr::distinct(!!ensym(taxGroup)) %>%
     dplyr::mutate(gbifInfo = map(!!ensym(taxGroup),name_backbone)) %>%
     tidyr::unnest(cols = c(gbifInfo)) %>%
     dplyr::mutate(Common = map_chr(usageKey,get_gbif_common))
 
-  taxGroupLoop <- taxaModsFull %>%
+  taxGroupLoop <- taxaModsOverall %>%
     dplyr::pull(!!ensym(taxGroup)) %>%
     unique() %>%
     sort() %>%

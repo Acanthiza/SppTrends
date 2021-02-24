@@ -2,13 +2,13 @@
 
   useTaxGroup <- "{{thisTaxGroup}}"
 
-  taxGroupDat <- taxaModsFull %>%
+  taxGroupDat <- datTidy %>%
+    dplyr::distinct(!!ensym(taxGroup),Taxa,Common) %>%
     dplyr::mutate(thisTaxGroup = gsub(" ","",!!ensym(taxGroup))) %>%
     dplyr::filter(thisTaxGroup == useTaxGroup)
 
-  nTaxGroup <- dat %>%
+  nTaxGroup <- datTidy %>%
     dplyr::filter(!!ensym(taxGroup) == useTaxGroup) %>%
-    dplyr::left_join(luTax) %>%
     dplyr::count(Taxa,Common)
   
   commonInTaxGroup <- nTaxGroup %>%
@@ -31,6 +31,7 @@ The most common `r useTaxGroup` taxa in the data set included `r vec_to_sentence
   taxaExp = NULL
 
   taxaLoop <- taxGroupDat %>%
+    dplyr::inner_join(taxaModsOverall[,c("Taxa")]) %>%
     purrr::when(testRmd ~ (.) %>%
                   dplyr::sample_n(nrow(.)) %>%
                   dplyr::slice(1:3)

@@ -134,17 +134,19 @@
     
   }
   
+  
   #--------Explore models-----------
+  
   taxaMods <- dat %>%
     dplyr::mutate(mod = fs::path(outDir,paste0("reporting-rate_",Taxa,".rds"))
                   , exists = map_lgl(mod,file.exists)
                   ) %>%
     dplyr::filter(exists) %>%
     dplyr::mutate(mod = map(mod,read_rds)) %>%
-    dplyr::mutate(res = pmap(list(Taxa = Taxa
-                                  , Common = Common
-                                  , df = data
-                                  , mod = mod
+    dplyr::mutate(res = pmap(list(Taxa
+                                  , Common
+                                  , data
+                                  , mod
                                   , modType = "Reporting rate"
                                   )
                              , mod_explore
