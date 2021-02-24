@@ -3,8 +3,8 @@
     
   library(magrittr)
   
-  runFrom <- 30
-  runTo <- 50
+  runFrom <- 0
+  runTo <- 32
   excludes <- 35
   
   testing <- T
@@ -13,7 +13,7 @@
   
   getNewData <- FALSE
   
-  runReason <- paste0("Changed record aggregation back to just cell. Testing = ",testing,".")
+  runReason <- paste0("Split scripts by analysis. Testing = ",testing,".")
   
   dir() %>%
     grep("^\\d{4}_.*\\.R$",.,value=TRUE) %>%

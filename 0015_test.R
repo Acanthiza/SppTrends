@@ -11,7 +11,8 @@ if(testing) {
               #, "Accipitriformes"
               )
   
-  genera <- c("Melithreptus"
+  genera <- c(NULL
+              #, "Melithreptus"
               , "Pandion"
               , "Haliaeetus"
               #, "Cacatua"

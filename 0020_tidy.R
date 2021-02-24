@@ -35,9 +35,21 @@
     dplyr::count(Taxa,LATITUDE,LONGITUDE,year,month,yearmon,name="siteRecords") %>%
     dplyr::left_join(luTax)
   
+  
+  #-------taxGroup---------
+  
+  taxGroups <- luTax %>%
+    dplyr::filter(Taxa %in% tests) %>%
+    dplyr::pull(!!ensym(taxGroup)) %>%
+    unique()
+  
+  taxaAllDatesAOITaxTaxGroup <- taxaAllDatesAOITax %>%
+    dplyr::filter(!!ensym(taxGroup) %in% taxGroups)
+  
+  
   #-------Add geo context-------
   
-  siteGeo <- taxaAllDatesAOITax %>%
+  siteGeo <- taxaAllDatesAOITaxTaxGroup %>%
     dplyr::distinct(LONGITUDE,LATITUDE) %>%
     st_as_sf(coords = c("LONGITUDE","LATITUDE"), crs = 4326, remove = FALSE) %>%
     st_transform(crs = crs(polys))
@@ -75,7 +87,7 @@
   
   
   #------dat--------
-  datTidy <- taxaAllDatesAOITax %>%
+  datTidy <- taxaAllDatesAOITaxTaxGroup %>%
     dplyr::inner_join(siteGeoContext) %>%
     dplyr::distinct(!!ensym(taxGroup),Taxa,year,month,yearmon,geo1,geo2,cell,site) %>%
     dplyr::mutate(cell = as.factor(cell)
@@ -83,4 +95,5 @@
                   )
   
   
-  timer$stop("tidy", comment = paste0("tidy took records from ",nrow(taxaAll)," to ",nrow(dat)))
+  timer$stop("tidy", comment = paste0("tidy took records from ",nrow(taxaAll)," to ",nrow(datTidy)))
+  
