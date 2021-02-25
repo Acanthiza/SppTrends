@@ -95,7 +95,7 @@
   
   #------load data-------
   
-  rawGBIF <- data.table::fread(outFile)
+  rawGBIF <- read_feather(outFile) #data.table::fread(outFile)
   
   refsGBIF <- bib2df::bib2df("datasetRefs.bib")
   

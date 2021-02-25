@@ -1,9 +1,9 @@
 
-  outName <- "2021-02-24-1425_agricultural zone"
+  outName <- "new"
     
   library(magrittr)
   
-  runFrom <- 30
+  runFrom <- 0
   runTo <- 50
   excludes <- 34
   
@@ -13,7 +13,7 @@
   
   getNewData <- FALSE
   
-  runReason <- paste0("Tweaked ggpairs code to deal with factors with too many levels. Testing = ",testing,".")
+  runReason <- paste0("Redid gbif import from download. Now uses read_feather and saves taxaGBIF for futher use. Testing = ",testing,".")
   
   dir() %>%
     grep("^\\d{4}_.*\\.R$",.,value=TRUE) %>%

@@ -28,38 +28,48 @@
   
   #---------GBIF---------
   
-  source(path("code","gbif.r"))
+  outFile <- path("out","gbif","taxaGBIF.feather")
   
-  taxaGBIF <- rawGBIF %>%
-    as_tibble() %>%
-    dplyr::mutate(SPECIES = str_extract(scientificName,"[[:alpha:]]+\\s[[:alpha:]]+")
-                  , year = as.numeric(substr(eventDate,1,4))
-                  , month = as.numeric(substr(eventDate,6,7))
-                  , yearmon = as.numeric(paste0(year,substr(eventDate,6,7)))
-                  ) %>%
-    dplyr::select(LATITUDE = decimalLatitude
-                  , LONGITUDE = decimalLongitude
-                  , SPECIES
-                  , CommonName = vernacularName
-                  #, METHODDESC = ?
-                  , NUMOBSERVED = individualCount
-                  , year
-                  , month
-                  , yearmon
-                  , maxDist = coordinateUncertaintyInMeters
-                  ) %>%
-    dplyr::add_count(SPECIES, name = "records") %>%
-    dplyr::filter(!is.na(LATITUDE)
-                  , !is.na(LONGITUDE)
-                  , !is.na(SPECIES)
-                  , !is.na(year)
-                  , records > 3
-                  ) %>%
-    dplyr::mutate(source = "GBIF"
-                  , NUMOBSERVED = as.character(NUMOBSERVED)
-                  , maxDist = gsub('>|""',NA,maxDist)
-                  , maxDist = as.numeric(maxDist)
-                  )
+  if(!file.exists(outFile)) {
+    
+    source(path("code","gbif.r"))
+  
+    taxaGBIF <- rawGBIF %>%
+      as_tibble() %>%
+      dplyr::mutate(SPECIES = str_extract(scientificName,"[[:alpha:]]+\\s[[:alpha:]]+")
+                    , year = as.numeric(substr(eventDate,1,4))
+                    , month = as.numeric(substr(eventDate,6,7))
+                    , yearmon = as.numeric(paste0(year,substr(eventDate,6,7)))
+                    ) %>%
+      dplyr::select(LATITUDE = decimalLatitude
+                    , LONGITUDE = decimalLongitude
+                    , SPECIES
+                    , CommonName = vernacularName
+                    #, METHODDESC = ?
+                    , NUMOBSERVED = individualCount
+                    , year
+                    , month
+                    , yearmon
+                    , maxDist = coordinateUncertaintyInMeters
+                    ) %>%
+      dplyr::add_count(SPECIES, name = "records") %>%
+      dplyr::filter(!is.na(LATITUDE)
+                    , !is.na(LONGITUDE)
+                    , !is.na(SPECIES)
+                    , !is.na(year)
+                    , records > 3
+                    ) %>%
+      dplyr::mutate(source = "GBIF"
+                    , NUMOBSERVED = as.character(NUMOBSERVED)
+                    , maxDist = gsub('>|""',NA,maxDist)
+                    , maxDist = as.numeric(maxDist)
+                    )
+    
+    write_feather(taxaGBIF,outFile)
+    
+  }
+  
+  taxaGBIF <- read_feather(outFile)
   
   
   #-------Combine-------
