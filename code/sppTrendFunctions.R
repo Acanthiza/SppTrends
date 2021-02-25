@@ -16,6 +16,8 @@
                                            )
                           ) {
     
+    print(Taxa)
+    
     #-------setup explore-------
     
     res <- list()
@@ -132,7 +134,8 @@
     }
     
     res$pairs <- ggpairs(datExp %>%
-                           dplyr::select(1,where(~n_distinct(.) < 15))
+                           dplyr::select(1,where(~n_distinct(.) < 15)) %>%
+                           dplyr::mutate(across(where(is.factor),factor))
                          ) +
       theme(axis.text.x=element_text(angle=90, vjust=0.5))
     
@@ -648,11 +651,12 @@
 
   
   filter_taxa_data <- function(df
-                               , minListLengthThresh = 1
+                               , minListLengthThresh = 3
                                , maxListLengthOccurenceThresh = 3
                                , minlistOccurenceThresh = 5
                                , minYearsThresh = 3
-                               , minListLengths = 3
+                               , minListLengthsThresh = 2
+                               , minCellsThresh = 5
                                ) {
     
     find_min_list_length <- function(df) {
@@ -706,17 +710,31 @@
       
     }
     
+    find_min_cells <- function(df) {
+      
+      df %>%
+        dplyr::distinct(year,Taxa,geo2,cell) %>%
+        dplyr::count(year,geo2,Taxa, name = "cells") %>%
+        dplyr::filter(cells == min(cells)) %>%
+        dplyr::distinct(cells) %>%
+        dplyr::pull(cells)
+      
+    }
+    
     minListLength <- find_min_list_length(df)
     maxListLengthOccurence <- find_max_list_length_occurence(df)
     minlistOccurence <- find_min_list_occurence(df)
     minYears <- find_min_years(df)
     minLengths <- find_min_list_lengths(df)
+    minCells <- find_min_cells(df)
     
     
     while(minListLength < minListLengthThresh |
           maxListLengthOccurence < maxListLengthOccurenceThresh |
           minlistOccurence < minlistOccurenceThresh |
-          minYears < minYearsThresh
+          minYears < minYearsThresh |
+          minLengths < minListLengthsThresh |
+          minCells < minCellsThresh
     ) {
       
       df <- df %>%
@@ -745,21 +763,50 @@
         dplyr::distinct(geo2,!!ensym(taxGroup),Taxa)
       
       removeTaxaWithFewLengths <- df %>%
+        dplyr::anti_join(removeTaxaOnShortLists) %>%
+        dplyr::anti_join(removeTaxaWithFewOccurrences) %>%
+        dplyr::anti_join(removeTaxaWithFewYears) %>%
         dplyr::count(geo2,Taxa,listLength,name = "blah") %>%
         dplyr::count(geo2,Taxa, name = "lengths") %>%
-        dplyr::filter(lengths < minListLengths)
+        dplyr::filter(lengths < minListLengths) %>%
+        dplyr::distinct(geo2,Taxa)
+      
+      removeTaxaWithFewCells <- df %>%
+        dplyr::anti_join(removeTaxaOnShortLists) %>%
+        dplyr::anti_join(removeTaxaWithFewOccurrences) %>%
+        dplyr::anti_join(removeTaxaWithFewYears) %>%
+        dplyr::anti_join(removeTaxaWithFewLengths) %>%
+        dplyr::distinct(year,Taxa,geo2,cell) %>%
+        dplyr::count(year,geo2,Taxa, name = "cells") %>%
+        dplyr::filter(cells < minCellsThresh) %>%
+        dplyr::distinct(year,geo2,Taxa)
       
       df <- df %>%
         dplyr::anti_join(removeTaxaOnShortLists) %>%
         dplyr::anti_join(removeTaxaWithFewOccurrences) %>%
         dplyr::anti_join(removeTaxaWithFewYears) %>%
         dplyr::anti_join(removeTaxaWithFewLengths) %>%
+        dplyr::anti_join(removeTaxaWithFewCells) %>%
         dplyr::add_count(list, name = "listLength")
       
       minListLength <- find_min_list_length(df)
       maxListLengthOccurence <- find_max_list_length_occurence(df)
       minlistOccurence <- find_min_list_occurence(df)
       minYears <- find_min_years(df)
+      minLengths <- find_min_list_lengths(df)
+      minCells <- find_min_cells(df)
+      
+      res <- paste0("Minimum list length = ",minListLength
+                    ,"\nMaximum list taxa occurs on = ",maxListLengthOccurence
+                    ,"\nMinimum list occurence = ",minlistOccurence
+                    ,"\nMinimum years = ",minYears
+                    ,"\nMinimum list lengths = ",minLengths
+                    ,"\nMinimum cells per Taxa, Geo2, Year = ",minCells
+                    ,"Total records = ",nrow(df)
+                    ,"\n"
+                    )
+      
+      if(testing) cat(res)
       
     }
     

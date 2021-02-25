@@ -6,57 +6,96 @@
   
   # Sampling unit for occupancy is based on a cell within a yearmon. Thus, success is presence within a cell in a yearmon
   
-  datForOcc <- dat %>%
-    dplyr::mutate(quart = cut(month,breaks = c(0,3,6,9,12),labels = FALSE)
-                  , yearquart = paste0(year,quart)
-                  ) %>%
-    dplyr::distinct(Taxa,year,quart,yearquart,!!ensym(taxGroup),geo1,geo2,cell) %>%
-    dplyr::mutate(list = paste0(yearquart,"-",!!ensym(taxGroup),"-",cell)) %>%
-    dplyr::mutate(success = 1) %>%
-    dplyr::add_count(list, name = "listLength") %>%
-    filter_taxa_data(minListLengthThresh = 1)
+  allScales <- c("geo1","geo2","cell") #in order
+  analysisScales <- allScales#[-length(allScales)]
   
-  taxaGeo <- datForOcc %>%
+  trials <- datTidy %>%
+    dplyr::distinct(year,quart,!!ensym(taxGroup),across(any_of(allScales))) %>%
+    dplyr::group_by(year,quart,!!ensym(taxGroup),across(any_of(analysisScales))) %>%
+    dplyr::summarise(trials = n()) %>%
+    dplyr::ungroup()
+  
+  success <- datTidy %>%
+    dplyr::distinct(Taxa,year,quart,!!ensym(taxGroup),across(any_of(allScales))) %>%
+    dplyr::group_by(Taxa,year,quart,!!ensym(taxGroup),across(any_of(analysisScales))) %>%
+    dplyr::summarise(success = n()) %>%
+    dplyr::ungroup()
+  
+  datFiltered <- trials %>%
+    dplyr::left_join(success) %>%
+    dplyr::mutate(list = paste0(year,"-",quart,"-",!!ensym(taxGroup),"-",get(analysisScales[length(analysisScales)]))) %>%
+    dplyr::add_count(list, name = "listLength") %>%
+    filter_taxa_data(minListLengthThresh = 0
+                     , maxListLengthOccurenceThresh = 0
+                     , minlistOccurenceThresh = 1
+                     , minYearsThresh = 5
+                     , minListLengthsThresh = 0
+                     )
+  
+  taxaGeo <- datFiltered %>%
     dplyr::distinct(!!ensym(taxGroup)
                     ,Taxa
-                    ,cell
-                    ) 
+                    ,across(any_of(analysisScales))
+                    )
   
   #-------datForRR---------
   
-  datOcc <- datForOcc %>%
+  dat <- datFiltered %>%
     dplyr::inner_join(taxaGeo) %>%
-    dplyr::mutate(success = 1) %>%
-    tidyr::nest(data = c(!!ensym(taxGroup),Taxa,cell,yearquart,success))
-    tidyr::pivot_wider(names_from = "Taxa", values_from = "success", values_fill = 0) %>%
-    tidyr::pivot_longer(cols = any_of(unique(taxaGeo$Taxa)),names_to = "Taxa", values_to = "success") %>%
+    tidyr::pivot_wider(names_from = c("Taxa","quart"), values_from = "success", values_fill = 0) %>%
+    tidyr::pivot_longer(cols = contains(unique(taxaGeo$Taxa))
+                        , names_to = c("Taxa","quart")
+                        , names_sep = "_"
+                        , values_to = "success"
+                        ) %>%
     dplyr::inner_join(taxaGeo) %>%
     purrr::when(testing ~ (.) %>% dplyr::filter(Taxa %in% tests)
                 , !testing ~ (.)
                 ) %>%
-    tidyr::nest(data = c(geo1,geo2,cell,year,quart,yearquart,list,listLength,success))
+    tidyr::nest(data = c(any_of(analysisScales),year,quart,list,listLength,success,trials)) %>%
+    dplyr::left_join(luTax %>%
+                       dplyr::select(Taxa,Common)
+                     )
   
-    %>%
-      dplyr::left_join(luTax %>%
-                         dplyr::select(!!ensym(taxGroup),Taxa,Common)
-      )
+  #------Model function--------
   
-  occ <- function(Taxa,Common,geo = "geo2",occDf) {
+  occ <- function(Taxa,data) {
     
-    print(Taxa)
+    print(paste0(Taxa))
     
     outFile <- fs::path(outDir,paste0("occupancy_",Taxa,".rds"))
     
-    res <- list()
+    geos <- length(unique(data$geo2))
     
-    occDf %>%
-      tidyr::nest(data = -c(!!ensym(geo),year))
-      
+    datMod <- data %>%
+      tidyr::pivot_wider(names_from = "quart"
+                         , values_from = "success"
+                         ) %>%
+      tidyr::nest(data = -c(year,geo2)) %>%
+      dplyr::filter(geo2 == sort(geo2)[1]) %>%
+      dplyr::mutate(umf = map(data
+                              , function(x) unmarkedFrameOccu(y = x %>% dplyr::select(grep("q\\d{1}",names(x),value = TRUE)))
+                              )
+                  , mod = map(umf
+                              , function(x) stan_occu(~1 ~1
+                                                      , data = x
+                                                      , chains = if(testing) testChains else useChains
+                                                      , iter = if(testing) testIter else useIter
+                                                      )
+                              )
+                  , occ = map(mod
+                              , function(x) tibble(run = 1:draws
+                                                   , occ = sample(plogis(extract(x,"beta_state[(Intercept)]")[[1]]),draws)
+                                                   )
+                              )
+                  )
     
     
+    
+   
+    
+    write_rds(mod,outFile)
     
   }
-  
-  
   
   

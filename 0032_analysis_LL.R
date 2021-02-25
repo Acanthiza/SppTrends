@@ -24,7 +24,7 @@
     dplyr::left_join(success) %>%
     dplyr::mutate(list = paste0(year,"-",!!ensym(taxGroup),"-",get(analysisScales[length(analysisScales)]))) %>%
     dplyr::add_count(list, name = "listLength") %>%
-    filter_taxa_data()
+    filter_taxa_data(minCellsThresh = 0)
   
   # trials <- datTidy %>%
   #   dplyr::inner_join(datFiltered) %>%

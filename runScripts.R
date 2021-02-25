@@ -1,9 +1,9 @@
 
-  outName <- "new"
+  outName <- "2021-02-24-1425_agricultural zone"
     
   library(magrittr)
   
-  runFrom <- 0
+  runFrom <- 30
   runTo <- 50
   excludes <- 34
   
@@ -13,7 +13,7 @@
   
   getNewData <- FALSE
   
-  runReason <- paste0("Update to Rmd after overhaul of individual scripts. Testing = ",testing,".")
+  runReason <- paste0("Tweaked ggpairs code to deal with factors with too many levels. Testing = ",testing,".")
   
   dir() %>%
     grep("^\\d{4}_.*\\.R$",.,value=TRUE) %>%

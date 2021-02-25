@@ -75,7 +75,7 @@ For _`r taxa`_, `r paste0("in ",recent, " compared with ", reference)`, `r modTy
 
 ```{r llData{{thisTaxa}}}
 
-  mod <- taxaDat$modRR[[1]]
+  mod <- taxaDat$modLL[[1]]
 
   modType <- "list length corrected reporting rate"
 

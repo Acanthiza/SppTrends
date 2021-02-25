@@ -22,7 +22,7 @@
 
 # `r useTaxGroup`
 
-The [GBIF taxonomic backbone](https://www.gbif.org/dataset/d7dddbf4-2cf0-4f39-9b2a-bb099caae36c) lists `r useTaxGroup` as `r taxGroupNames %>% dplyr::filter(!!ensym(taxGroup) == useTaxGroup) %>% dplyr::pull(Common) %>% paste0(collapse = "|") %>% tolower()`.
+The [GBIF taxonomic backbone](https://www.gbif.org/dataset/d7dddbf4-2cf0-4f39-9b2a-bb099caae36c) lists `r useTaxGroup` as: `r taxGroupNames %>% dplyr::filter(!!ensym(taxGroup) == useTaxGroup) %>% dplyr::pull(Common) %>% paste0(collapse = "|") %>% tolower()`.
 
 The most common `r useTaxGroup` taxa in the data set included `r vec_to_sentence(commonInTaxGroup$text)`. In total there were `r nrow(nTaxGroup)` `r useTaxGroup` in the data set, setting an upper limit to the maximum possible list length - although this was adjusted down to the number of `r useTaxGroup` with records in each IBRA Subregion.
 
