@@ -87,6 +87,7 @@
                           s(year, k = 4, bs = "ts") +
                           s(year, k = 4, by = geo2, bs = "ts") +
                           s(year, k = 4, by = listLengthLog, bs = "ts") +
+                          geo2 +
                           geo2*listLengthLog
                         , data = data
                         , family = binomial()

@@ -4,11 +4,13 @@
                                       , Common
                                       , resRR
                                       , resLL
+                                      , resOcc
                                       )
-                                 , function(a,b,c,d) year_difference_overall(a
+                                 , function(a,b,c,d,e) year_difference_overall(a
                                                                              , b
                                                                              , c$yearDifferenceDf
                                                                              , d$yearDifferenceDf
+                                                                             , e$yearDifferenceDf
                                                                              )
                                  )
                   )

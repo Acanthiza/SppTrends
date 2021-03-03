@@ -1,6 +1,6 @@
 
 
-  timer$start("occupancy")
+  timer$start("occ")
   
   #-------datForOcc---------
   
@@ -30,12 +30,13 @@
                      , minlistOccurenceThresh = 1
                      , minYearsThresh = 5
                      , minListLengthsThresh = 0
+                     , minCellsThresh = 5
                      )
   
   taxaGeo <- datFiltered %>%
     dplyr::distinct(!!ensym(taxGroup)
                     ,Taxa
-                    ,across(any_of(analysisScales))
+                    ,across(any_of(allScales))
                     )
   
   #-------datForRR---------
@@ -59,7 +60,7 @@
   
   #------Model function--------
   
-  occ <- function(Taxa,data) {
+  occ <- function(Taxa,data,draws = 200, useGAM = TRUE) {
     
     print(paste0(Taxa))
     
@@ -67,35 +68,147 @@
     
     geos <- length(unique(data$geo2))
     
-    datMod <- data %>%
+    datOcc <- data %>%
       tidyr::pivot_wider(names_from = "quart"
                          , values_from = "success"
                          ) %>%
       tidyr::nest(data = -c(year,geo2)) %>%
-      dplyr::filter(geo2 == sort(geo2)[1]) %>%
+      dplyr::mutate(trials = map_dbl(data,nrow)) %>%
+      dplyr::filter(trials > 3) %>%
+      
+      #dplyr::sample_n(2) %>% # TESTING
+      
       dplyr::mutate(umf = map(data
                               , function(x) unmarkedFrameOccu(y = x %>% dplyr::select(grep("q\\d{1}",names(x),value = TRUE)))
                               )
-                  , mod = map(umf
-                              , function(x) stan_occu(~1 ~1
-                                                      , data = x
-                                                      , chains = if(testing) testChains else useChains
-                                                      , iter = if(testing) testIter else useIter
-                                                      )
+                  , modYear = map(umf
+                              , function(x) unmarked::occu(~1 ~1
+                                                           , data = x
+                                                           )
                               )
-                  , occ = map(mod
-                              , function(x) tibble(run = 1:draws
-                                                   , occ = sample(plogis(extract(x,"beta_state[(Intercept)]")[[1]]),draws)
-                                                   )
+                  , occ = map_dbl(modYear
+                              , ~backTransform(.,type = "state")@estimate
                               )
-                  )
+                  , occ = if_else(occ == 0, 0.000000001,occ)
+                  , occ = if_else(occ == 1, 0.999999999,occ)
+                  , det = map_dbl(modYear
+                              , ~backTransform(.,type = "det")@estimate
+                              )
+                  ) %>%
+      dplyr::select(where(Negate(is.list))) %>%
+      dplyr::mutate(across(where(is.character),factor))
     
+    write_feather(datOcc,path(outDir,paste0("occupancyDf_",Taxa,".feather")))
     
-    
-   
+    # GAM
+    if(useGAM) {
+      
+      if(geos > 1) {
+        
+        mod <- stan_gamm4(occ ~ s(year, k = 4, bs = "ts") + geo2 + s(year, k = 4, by = geo2, bs = "ts")
+                          , data = datOcc
+                          , family = mgcv::betar
+                          , chains = if(testing) testChains else useChains
+                          , iter = if(testing) testIter else useIter
+                          )
+        
+      } else {
+        
+        mod <- stan_gamm4(occ ~ s(year, k = 4)
+                          , data = datOcc
+                          , family = mgcv::betar
+                          , chains = if(testing) testChains else useChains
+                          , iter = if(testing) testIter else useIter
+                          )
+        
+      }
+      
+    } else {
+      
+      # GLM
+      if(geos > 1) {
+
+        mod <- stan_betareg(occ ~ year*geo2
+                            , data = datOcc
+                            , chains = if(testing) testChains else useChains
+                            , iter = if(testing) testIter else useIter
+                            )
+
+      } else {
+
+        mod <- stan_betareg(occ ~ year
+                            , data = datOcc
+                            , chains = if(testing) testChains else useChains
+                            , iter = if(testing) testIter else useIter
+                            )
+
+      }
+      
+      
+    }
     
     write_rds(mod,outFile)
     
   }
+  
+  #------Run models-------
+  
+  todo <- dat %>%
+    dplyr::mutate(outFile = fs::path(outDir,paste0("occupancy_",Taxa,".rds"))
+                  , done = map_lgl(outFile,file.exists)
+                  ) %>%
+    dplyr::filter(!done)
+  
+  if(nrow(todo) > 0) {
+    
+    if(nrow(todo) > useCores/(if(testing) testChains else useChains)) {
+      
+      future_pwalk(list(todo$Taxa
+                        , todo$data
+                        )
+                   , occ
+                   , useGAM = FALSE
+                   )
+      
+    } else {
+      
+      pwalk(list(todo$Taxa,todo$data),occ)
+      
+    }
+    
+    
+  }
+  
+  
+  #--------Explore models-----------
+  
+  taxaModsOcc <- dat %>%
+    dplyr::mutate(mod = fs::path(outDir,paste0("occupancy_",Taxa,".rds"))
+                  , data = fs::path(outDir,paste0("occupancyDf_",Taxa,".feather"))
+                  , exists = map_lgl(mod,file.exists)
+                  ) %>%
+    dplyr::filter(exists) %>%
+    dplyr::mutate(data = map(data,read_feather)
+                  , mod = map(mod,read_rds)
+                  ) %>%
+    dplyr::mutate(res = pmap(list(Taxa
+                                  , Common
+                                  , data
+                                  , mod
+                                  , respVar = "occ"
+                                  , modType = "Reporting rate"
+                                  )
+                             , mod_explore
+                             )
+                  )
+  
+  timer$stop("occ", comment = paste0("Occupancy models run for "
+                                     ,nrow(taxaMods)
+                                     ," taxa, of which "
+                                     ,nrow(todo)
+                                     ," were new"
+                                     )
+             )
+  
   
   

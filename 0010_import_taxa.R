@@ -28,9 +28,9 @@
   
   #---------GBIF---------
   
-  outFile <- path("out","gbif","taxaGBIF.feather")
+  gbifFile <- path("out","gbif","taxaGBIF.feather")
   
-  if(!file.exists(outFile)) {
+  if(!file.exists(gbifFile)) {
     
     source(path("code","gbif.r"))
   
@@ -65,11 +65,11 @@
                     , maxDist = as.numeric(maxDist)
                     )
     
-    write_feather(taxaGBIF,outFile)
+    write_feather(taxaGBIF,gbifFile)
     
   }
   
-  taxaGBIF <- read_feather(outFile)
+  taxaGBIF <- read_feather(gbifFile)
   
   
   #-------Combine-------

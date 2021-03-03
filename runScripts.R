@@ -5,7 +5,7 @@
   
   runFrom <- 0
   runTo <- 50
-  excludes <- 34
+  excludes <- 0
   
   testing <- T
   testRmd <- F
@@ -13,7 +13,7 @@
   
   getNewData <- FALSE
   
-  runReason <- paste0("Redid gbif import from download. Now uses read_feather and saves taxaGBIF for futher use. Testing = ",testing,".")
+  runReason <- paste0("Attempt at full run including occupancy. Testing = ",testing,".")
   
   dir() %>%
     grep("^\\d{4}_.*\\.R$",.,value=TRUE) %>%

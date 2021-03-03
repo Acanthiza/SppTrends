@@ -12,7 +12,7 @@
                                            ,"Common"
                                            ,"listLength"
                                            ,"year"
-                                           ,analysisScales[-length(analysisScales)]
+                                           ,"geo2"
                                            )
                           ) {
     
@@ -134,7 +134,8 @@
     }
     
     res$pairs <- ggpairs(datExp %>%
-                           dplyr::select(1,where(~n_distinct(.) < 15)) %>%
+                           dplyr::mutate(across(where(is.character),factor)) %>%
+                           dplyr::select(where(~is.numeric(.x)|is.factor(.x) & n_distinct(.x) < 15)) %>%
                            dplyr::mutate(across(where(is.factor),factor))
                          ) +
       theme(axis.text.x=element_text(angle=90, vjust=0.5))
@@ -192,11 +193,15 @@
 
 
     #---------post explore-------
+    
+    if(family(mod)$family == "beta") class(mod) <- c(class(mod),"betareg")
+    
+    isBinomialMod <- family(mod)$family == "binomial"
 
     res$pred <- df %>%
-      dplyr::distinct(geo1,geo2,year) %>%
-      dplyr::mutate(listLength = median(df$listLength)
-                    , listLengthLog = log(listLength)
+      dplyr::distinct(geo2,year) %>%
+      dplyr::mutate(listLength = if(hasLL) median(df$listLength) else NULL
+                    , listLengthLog = if(hasLL) log(listLength) else NULL
                     , col = row.names(.)
                     , success = 0
                     , trials = 100
@@ -204,13 +209,14 @@
       dplyr::left_join(as_tibble(posterior_predict(mod
                                                    , newdata = .
                                                    , re.form = NA#insight::find_formula(mod)$random
+                                                   , type = "response"
                                                    )
                                  ) %>%
                          tibble::rownames_to_column(var = "row") %>%
                          tidyr::gather(col,value,2:ncol(.))
                        ) %>%
       dplyr::mutate(rawValue = as.numeric(value)
-                    , value = rawValue/trials
+                    , value = if(isBinomialMod) rawValue/trials else rawValue
                     )
 
     res$res <- res$pred %>%
@@ -229,7 +235,7 @@
     #------res plot data-------
 
     plotData <- df %>%
-      dplyr::distinct(geo1,geo2,year) %>%
+      dplyr::distinct(geo2,year) %>%
       dplyr::mutate(success = 0
                     , trials = 100
                     ) %>%
@@ -256,7 +262,7 @@
 
     } else {
 
-      paste0("Reporting rate.\nDashed red lines indicate years for comparison (see text).")
+      paste0(modType,".\nDashed red lines indicate years for comparison (see text).")
 
     }
 
@@ -278,8 +284,8 @@
     #-------res plotLine-----------
 
     p <- plotData %>%
-      ggplot(aes(x = year, y = prop)) +
-      geom_line(aes(y = .value, group = .draw), alpha = 0.05) +
+      ggplot(aes(x = year, y = !!ensym(respVar))) +
+      geom_line(aes(y = .value, group = .draw), alpha = 0.5) +
       geom_vline(xintercept = testYears$year, linetype = 2, colour = "red") +
       facet_wrap(~geo2) +
       theme(axis.text.x = element_text(angle = 90, vjust = 0.5, hjust=1)) +
@@ -290,7 +296,7 @@
     if(hasLL) p <- p +
       geom_jitter(data = df
                   ,aes(year
-                       , prop
+                       , !!ensym(respVar)
                        , colour = listLength
                        )
                   , width = 0.1
@@ -302,7 +308,7 @@
     if(!hasLL) p <- p +
       geom_jitter(data = df
                   ,aes(year
-                       , prop
+                       , !!ensym(respVar)
                        , colour = trials
                        )
                   , width = 0.1
@@ -334,7 +340,7 @@
     if(hasLL) p <- p +
       geom_jitter(data = df
                   ,aes(year
-                       ,prop
+                       ,!!ensym(respVar)
                        , colour = listLength
                        )
                   , width = 0.1
@@ -346,7 +352,7 @@
     if(!hasLL) p <- p +
       geom_jitter(data = df
                   ,aes(year
-                       , prop
+                       , !!ensym(respVar)
                        , colour = trials
                        )
                   , width = 0.1
@@ -365,8 +371,8 @@
       dplyr::full_join(testYears
                        , by = character()
                        ) %>%
-      dplyr::mutate(listLength = median(df$listLength)
-                    , listLengthLog = log(listLength)
+      dplyr::mutate(listLength = if(hasLL) median(df$listLength) else NULL
+                    , listLengthLog = if(hasLL) log(listLength) else NULL
                     , col = row.names(.)
                     , success = 0
                     , trials = 100
@@ -384,7 +390,7 @@
                          tidyr::gather(col,value,2:ncol(.))
                        ) %>%
       dplyr::select(-c(col)) %>%
-      dplyr::mutate(value = value/trials) %>%
+      dplyr::mutate(value = as.numeric(if(isBinomialMod) value/trials else value)) %>%
       tidyr::pivot_wider(names_from = "type"
                          , values_from = c("year","value")
                          ) %>%
@@ -656,7 +662,7 @@
                                , minlistOccurenceThresh = 5
                                , minYearsThresh = 3
                                , minListLengthsThresh = 2
-                               , minCellsThresh = 5
+                               , minCellsThresh = 0
                                ) {
     
     find_min_list_length <- function(df) {
@@ -768,10 +774,10 @@
         dplyr::anti_join(removeTaxaWithFewYears) %>%
         dplyr::count(geo2,Taxa,listLength,name = "blah") %>%
         dplyr::count(geo2,Taxa, name = "lengths") %>%
-        dplyr::filter(lengths < minListLengths) %>%
+        dplyr::filter(lengths < minListLengthsThresh) %>%
         dplyr::distinct(geo2,Taxa)
       
-      removeTaxaWithFewCells <- df %>%
+      removeTooFewCells <- df %>%
         dplyr::anti_join(removeTaxaOnShortLists) %>%
         dplyr::anti_join(removeTaxaWithFewOccurrences) %>%
         dplyr::anti_join(removeTaxaWithFewYears) %>%
@@ -786,7 +792,7 @@
         dplyr::anti_join(removeTaxaWithFewOccurrences) %>%
         dplyr::anti_join(removeTaxaWithFewYears) %>%
         dplyr::anti_join(removeTaxaWithFewLengths) %>%
-        dplyr::anti_join(removeTaxaWithFewCells) %>%
+        dplyr::anti_join(removeTooFewCells) %>%
         dplyr::add_count(list, name = "listLength")
       
       minListLength <- find_min_list_length(df)
@@ -802,7 +808,7 @@
                     ,"\nMinimum years = ",minYears
                     ,"\nMinimum list lengths = ",minLengths
                     ,"\nMinimum cells per Taxa, Geo2, Year = ",minCells
-                    ,"Total records = ",nrow(df)
+                    ,"\nTotal records = ",nrow(df)
                     ,"\n"
                     )
       

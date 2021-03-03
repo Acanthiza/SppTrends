@@ -80,17 +80,20 @@
     # GAM
     if(geos > 1) {
       
-      mod <- stan_gamm4(cbind(success,trials - success) ~ s(year, k = 4) + geo2 + s(year, k = 4, by = geo2)
-                            , data = data
-                            , family = binomial()
-                            , random = ~(1|cell)
-                            , chains = if(testing) testChains else useChains
-                            , iter = if(testing) testIter else useIter
-                            )
+      mod <- stan_gamm4(cbind(success,trials - success) ~
+                          s(year, k = 4, bs = "ts") +
+                          geo2 +
+                          s(year, k = 4, by = geo2, bs = "ts")
+                        , data = data
+                        , family = binomial()
+                        , random = ~(1|cell)
+                        , chains = if(testing) testChains else useChains
+                        , iter = if(testing) testIter else useIter
+                        )
       
     } else {
       
-      mod <- stan_gamm4(cbind(success,trials-success) ~ s(year, k = 4)
+      mod <- stan_gamm4(cbind(success,trials-success) ~ s(year, k = 4, bs = "ts")
                             , data = data
                             , random = ~ (1|cell)
                             , family = binomial()

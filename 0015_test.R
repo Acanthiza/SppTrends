@@ -9,7 +9,7 @@ if(testing) {
               #, "Anseriformes"
               #, "Charadriiformes"
               #, "Accipitriformes"
-              , "Diprotodontia"
+              #, "Diprotodontia"
               )
   
   genera <- c(NULL
@@ -21,7 +21,7 @@ if(testing) {
               #, "Pseudonaja"
               #, "Pogona"
               #, "Vespadelus"
-              #, "Macropus"
+              , "Macropus"
               , "Pachycephala"
               #, "Phylidonyris"
               , "Climacteris"
