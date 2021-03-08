@@ -2,7 +2,7 @@
 
   timer$start("occ")
   
-  #-------datForOcc---------
+  #-------Filter for analysis---------
   
   # Sampling unit for occupancy is based on a cell within a yearmon. Thus, success is presence within a cell in a yearmon
   
@@ -27,10 +27,12 @@
     dplyr::add_count(list, name = "listLength") %>%
     filter_taxa_data(minListLengthThresh = 0
                      , maxListLengthOccurenceThresh = 0
-                     , minlistOccurenceThresh = 1
-                     , minYearsThresh = 5
+                     , minlistOccurenceThresh = 0
+                     , minYearsThresh = 3
                      , minListLengthsThresh = 0
                      , minCellsThresh = 5
+                     , minYearSpanThresh = 10
+                     , allQuartVisits = TRUE
                      )
   
   taxaGeo <- datFiltered %>%
@@ -39,9 +41,17 @@
                     ,across(any_of(allScales))
                     )
   
-  #-------datForRR---------
+  cellYear <- datFiltered %>%
+    dplyr::inner_join(taxaGeo) %>%
+    dplyr::distinct(!!ensym(taxGroup)
+                    , cell
+                    , year
+                    )
+  
+  #-------Data prep---------
   
   dat <- datFiltered %>%
+    dplyr::select(year,quart,!!ensym(taxGroup),geo1,geo2,cell,Taxa,success) %>%
     dplyr::inner_join(taxaGeo) %>%
     tidyr::pivot_wider(names_from = c("Taxa","quart"), values_from = "success", values_fill = 0) %>%
     tidyr::pivot_longer(cols = contains(unique(taxaGeo$Taxa))
@@ -50,17 +60,18 @@
                         , values_to = "success"
                         ) %>%
     dplyr::inner_join(taxaGeo) %>%
+    dplyr::inner_join(cellYear) %>%
     purrr::when(testing ~ (.) %>% dplyr::filter(Taxa %in% tests)
                 , !testing ~ (.)
                 ) %>%
-    tidyr::nest(data = c(any_of(analysisScales),year,quart,list,listLength,success,trials)) %>%
+    tidyr::nest(data = c(any_of(analysisScales),year,quart,success)) %>%
     dplyr::left_join(luTax %>%
                        dplyr::select(Taxa,Common)
                      )
   
-  #------Model function--------
+  #------model function--------
   
-  occ <- function(Taxa,data,draws = 200, useGAM = TRUE) {
+  occ <- function(Taxa,data,draws = 200, useGAM = FALSE) {
     
     print(paste0(Taxa))
     
@@ -74,7 +85,6 @@
                          ) %>%
       tidyr::nest(data = -c(year,geo2)) %>%
       dplyr::mutate(trials = map_dbl(data,nrow)) %>%
-      dplyr::filter(trials > 3) %>%
       
       #dplyr::sample_n(2) %>% # TESTING
       
@@ -107,7 +117,7 @@
         
         mod <- stan_gamm4(occ ~ s(year, k = 4, bs = "ts") + geo2 + s(year, k = 4, by = geo2, bs = "ts")
                           , data = datOcc
-                          , family = mgcv::betar
+                          , family = binomial
                           , chains = if(testing) testChains else useChains
                           , iter = if(testing) testIter else useIter
                           )
@@ -116,7 +126,7 @@
         
         mod <- stan_gamm4(occ ~ s(year, k = 4)
                           , data = datOcc
-                          , family = mgcv::betar
+                          , family = binomial
                           , chains = if(testing) testChains else useChains
                           , iter = if(testing) testIter else useIter
                           )
@@ -196,7 +206,7 @@
                                   , data
                                   , mod
                                   , respVar = "occ"
-                                  , modType = "Reporting rate"
+                                  , modType = "Occupancy"
                                   )
                              , mod_explore
                              )

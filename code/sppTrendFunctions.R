@@ -199,7 +199,11 @@
     isBinomialMod <- family(mod)$family == "binomial"
 
     res$pred <- df %>%
-      dplyr::distinct(geo2,year) %>%
+      dplyr::distinct(geo2) %>%
+      dplyr::left_join(df %>%
+                         dplyr::distinct(year)
+                       , by = character()
+                       ) %>%
       dplyr::mutate(listLength = if(hasLL) median(df$listLength) else NULL
                     , listLengthLog = if(hasLL) log(listLength) else NULL
                     , col = row.names(.)
@@ -475,14 +479,15 @@
     
   }
   
-  year_difference_overall <- function(Taxa,Common,rrYearDiffDf,llYearDiffDf) {
+  year_difference_overall <- function(Taxa,Common,rrYearDiffDf,llYearDiffDf,occYearDiffDf) {
     
     plotTitles <- bquote(~italic(.(Taxa))*":" ~ .(Common))
     
     res <- list()
     
     res$yearDiffOverallDf <- rrYearDiffDf %>%
-      dplyr::bind_rows(llYearDiffDf)
+      dplyr::bind_rows(llYearDiffDf) %>%
+      dplyr::bind_rows(occYearDiffDf)
     
     res$yearDiffOverallRes <- res$yearDiffOverallDf %>%
       dplyr::summarise(n = n()
@@ -492,22 +497,22 @@
                        , medianEff = median(diff)
                        , cilo = quantile(diff, probs = 0.05)
                        , ciup = quantile(diff, probs = 0.95)
-      ) %>%
+                       ) %>%
       dplyr::mutate(likelihood = map(decline
                                      , ~cut(.
                                             , breaks = c(0,luLikelihood$maxVal)
                                             , labels = luLikelihood$likelihood
                                             , include.lowest = TRUE
+                                            )
                                      )
-      )
-      ) %>%
+                    ) %>%
       tidyr::unnest(cols = c(likelihood)) %>%
       dplyr::mutate(text = paste0(tolower(likelihood)
                                   , " to be declining ("
                                   , 100*round(decline,2)
                                   , "% chance)"
-      )
-      )
+                                  )
+                    )
     
     res$yearDiffOverallPlot <- res$yearDiffOverallDf %>%
       dplyr::mutate(likelihood = res$yearDiffOverallRes$likelihood) %>%
@@ -516,14 +521,14 @@
       geom_vline(aes(xintercept = 0)
                  , linetype = 2
                  , colour = "red"
-      ) +
+                 ) +
       scale_fill_viridis_d(drop = FALSE) +
       labs(title = plotTitles
            , subtitle = paste0("Distribution of credible values for change between "
                                ,recent
                                ," and "
                                ,reference
-           )
+                               )
            , x = "Difference"
            , y = "IBRA Subregion"
            , fill = "Likelihood of decrease"
@@ -663,6 +668,8 @@
                                , minYearsThresh = 3
                                , minListLengthsThresh = 2
                                , minCellsThresh = 0
+                               , minYearSpanThresh = 10
+                               , allQuartVisits = FALSE
                                ) {
     
     find_min_list_length <- function(df) {
@@ -719,11 +726,26 @@
     find_min_cells <- function(df) {
       
       df %>%
-        dplyr::distinct(year,Taxa,geo2,cell) %>%
-        dplyr::count(year,geo2,Taxa, name = "cells") %>%
+        dplyr::distinct(year,quart,Taxa,geo2,cell) %>%
+        dplyr::count(year,quart,geo2,Taxa, name = "cells") %>%
         dplyr::filter(cells == min(cells)) %>%
         dplyr::distinct(cells) %>%
         dplyr::pull(cells)
+      
+    }
+    
+    find_min_year_span <-function(df) {
+      
+      df %>%
+        dplyr::group_by(!!ensym(taxGroup),Taxa,across(any_of(analysisScales))) %>%
+        dplyr::mutate(minYear = min(year)
+                      , maxYear = max(year)
+                      , diffYear = maxYear - minYear
+                      ) %>%
+        dplyr::ungroup() %>%
+        dplyr::pull(diffYear) %>%
+        min() %>%
+        unique()
       
     }
     
@@ -733,15 +755,29 @@
     minYears <- find_min_years(df)
     minLengths <- find_min_list_lengths(df)
     minCells <- find_min_cells(df)
-    
+    minYearSpan <- find_min_year_span(df)
     
     while(minListLength < minListLengthThresh |
           maxListLengthOccurence < maxListLengthOccurenceThresh |
           minlistOccurence < minlistOccurenceThresh |
           minYears < minYearsThresh |
           minLengths < minListLengthsThresh |
-          minCells < minCellsThresh
+          minCells < minCellsThresh |
+          minYearSpan < minYearSpanThresh
     ) {
+      
+      if(allQuartVisits) {
+        
+        allQuarts <- df %>%
+          dplyr::distinct(!!ensym(taxGroup),year,cell,quart) %>%
+          dplyr::count(!!ensym(taxGroup),year,cell,name = "quarts") %>%
+          dplyr::filter(quarts == 4) %>%
+          dplyr::distinct(!!ensym(taxGroup),year,cell)
+        
+        df <- df %>%
+          dplyr::inner_join(allQuarts)
+        
+      }
       
       df <- df %>%
         dplyr::filter(listLength > minListLengthThresh)
@@ -782,10 +818,25 @@
         dplyr::anti_join(removeTaxaWithFewOccurrences) %>%
         dplyr::anti_join(removeTaxaWithFewYears) %>%
         dplyr::anti_join(removeTaxaWithFewLengths) %>%
-        dplyr::distinct(year,Taxa,geo2,cell) %>%
-        dplyr::count(year,geo2,Taxa, name = "cells") %>%
+        dplyr::distinct(year,quart,Taxa,geo2,cell) %>%
+        dplyr::count(year,quart,geo2,Taxa, name = "cells") %>%
         dplyr::filter(cells < minCellsThresh) %>%
         dplyr::distinct(year,geo2,Taxa)
+      
+      removeTooFewYears <- df %>%
+        dplyr::anti_join(removeTaxaOnShortLists) %>%
+        dplyr::anti_join(removeTaxaWithFewOccurrences) %>%
+        dplyr::anti_join(removeTaxaWithFewYears) %>%
+        dplyr::anti_join(removeTaxaWithFewLengths) %>%
+        dplyr::group_by(!!ensym(taxGroup),Taxa,across(any_of(analysisScales))) %>%
+        dplyr::mutate(minYear = min(year)
+                      , maxYear = max(year)
+                      , diffYear = maxYear - minYear
+                      ) %>%
+        dplyr::ungroup() %>%
+        dplyr::filter(diffYear < minYearSpanThresh) %>%
+        dplyr::distinct(!!ensym(taxGroup),Taxa,across(any_of(analysisScales)))
+        
       
       df <- df %>%
         dplyr::anti_join(removeTaxaOnShortLists) %>%
@@ -793,6 +844,7 @@
         dplyr::anti_join(removeTaxaWithFewYears) %>%
         dplyr::anti_join(removeTaxaWithFewLengths) %>%
         dplyr::anti_join(removeTooFewCells) %>%
+        dplyr::anti_join(removeTooFewYears) %>%
         dplyr::add_count(list, name = "listLength")
       
       minListLength <- find_min_list_length(df)
@@ -801,6 +853,7 @@
       minYears <- find_min_years(df)
       minLengths <- find_min_list_lengths(df)
       minCells <- find_min_cells(df)
+      minYearSpan <- find_min_year_span(df)
       
       res <- paste0("Minimum list length = ",minListLength
                     ,"\nMaximum list taxa occurs on = ",maxListLengthOccurence
@@ -808,6 +861,7 @@
                     ,"\nMinimum years = ",minYears
                     ,"\nMinimum list lengths = ",minLengths
                     ,"\nMinimum cells per Taxa, Geo2, Year = ",minCells
+                    ,"\nMinimum year span = ",minYearSpan
                     ,"\nTotal records = ",nrow(df)
                     ,"\n"
                     )
