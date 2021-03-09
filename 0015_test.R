@@ -14,17 +14,17 @@ if(testing) {
   
   genera <- c(NULL
               , "Melithreptus"
-              , "Pandion"
-              , "Haliaeetus"
+              #, "Pandion"
+              #, "Haliaeetus"
               #, "Cacatua"
               #, "Myiagra"
               #, "Pseudonaja"
               #, "Pogona"
               #, "Vespadelus"
-              , "Macropus"
-              , "Pachycephala"
+              #, "Macropus"
+              #, "Pachycephala"
               #, "Phylidonyris"
-              , "Climacteris"
+              #, "Climacteris"
               )
   
   testOrder <- luTax %>%

@@ -6,13 +6,15 @@
   source(path("code","bdbsa.r"))
   
   taxaBDBSA <- rawBDBSA %>%
-    dplyr::mutate(year = year(VISITDATE)
+    dplyr::mutate(date = VISITDATE
+                  , year = year(VISITDATE)
                   , month = month(VISITDATE)
                   , yearmon = as.numeric(paste0(year,sprintf("%02d",month)))
                   ) %>%
     dplyr::add_count(SPECIES, name = "records") %>%
     dplyr::filter(!is.na(LATITUDE)
                   , !is.na(LONGITUDE)
+                  , !is.na(date)
                   , !is.na(SPECIES)
                   , !is.na(yearmon)
                   , !grepl("in-active|sfossil",METHODDESC)
@@ -36,27 +38,29 @@
   
     taxaGBIF <- rawGBIF %>%
       as_tibble() %>%
-      dplyr::mutate(SPECIES = str_extract(scientificName,"[[:alpha:]]+\\s[[:alpha:]]+")
+      dplyr::mutate(date = ymd(gsub("T00:00:00","",eventDate))
+                    , SPECIES = str_extract(scientificName,"[[:alpha:]]+\\s[[:alpha:]]+")
                     , year = as.numeric(substr(eventDate,1,4))
                     , month = as.numeric(substr(eventDate,6,7))
                     , yearmon = as.numeric(paste0(year,substr(eventDate,6,7)))
                     ) %>%
-      dplyr::select(LATITUDE = decimalLatitude
+      dplyr::distinct(LATITUDE = decimalLatitude
                     , LONGITUDE = decimalLongitude
+                    , date
+                    , year
+                    , month
+                    , yearmon
                     , SPECIES
                     , CommonName = vernacularName
                     #, METHODDESC = ?
                     , NUMOBSERVED = individualCount
-                    , year
-                    , month
-                    , yearmon
                     , maxDist = coordinateUncertaintyInMeters
                     ) %>%
       dplyr::add_count(SPECIES, name = "records") %>%
       dplyr::filter(!is.na(LATITUDE)
                     , !is.na(LONGITUDE)
                     , !is.na(SPECIES)
-                    , !is.na(year)
+                    , !is.na(date)
                     , records > 3
                     ) %>%
       dplyr::mutate(source = "GBIF"

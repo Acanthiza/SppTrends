@@ -31,9 +31,9 @@
   
   # Which fields to collect from each data source - i.e. map the original source fields to these...
   collectFields <- c("LATITUDE","LONGITUDE"
+                     ,"date","year","month","yearmon"
                      ,"SPECIES", "CommonName"
-                     ,"METHODDESC","NUMOBSERVED","ISINDIGENOUSFLAG","Rank"
-                     ,"year","month","yearmon"
+                     ,"METHODDESC","NUMOBSERVED","ISINDIGENOUSFLAG","Rank"                     
                      ,"maxDist"
                      )
   

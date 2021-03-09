@@ -4,7 +4,7 @@
   library(magrittr)
   
   runFrom <- 0
-  runTo <- 50
+  runTo <- 34
   excludes <- 0
   
   testing <- T
@@ -13,7 +13,7 @@
   
   getNewData <- FALSE
   
-  runReason <- paste0("Attempt at full run including occupancy. Testing = ",testing,".")
+  runReason <- paste0("Left original date (rather than lumping to month) in taxaAll. Testing = ",testing,".")
   
   dir() %>%
     grep("^\\d{4}_.*\\.R$",.,value=TRUE) %>%
