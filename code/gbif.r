@@ -57,38 +57,44 @@
   
   #-------unzip gbif data--------
   
-  outFile <- path("out","gbif",metaGBIF$key,"verbatim.txt")
+  outFile <- path("out","gbif",metaGBIF$key,"occurrence.txt")
   
   if(!file.exists(outFile)) {
     
-    unzip(dir_ls(path("out","gbif"),regexp = metaGBIF$key)
+    unzip(path("out","gbif",paste0(metaGBIF$key,".zip"))
           , exdir = path("out","gbif",metaGBIF$key)
           )
     
-    get_dataset_DOI <- function(xmlFile) {
-      
-      XML::xmlParse(xmlFile) %>%
-        XML::getNodeSet("//*/dataset") %>%
-        XML::xmlToDataFrame() %>%
-        dplyr::pull(alternateIdentifier)
-      
-    }
+    rawGBIF <- data.table::fread(outFile)
     
-    datasetRefs <- dir_info(path("out","gbif",metaGBIF$key,"dataset")) %>%
-      dplyr::select(path) %>%
-      dplyr::mutate(DOI = map_chr(path,get_dataset_DOI))
+    write_feather(rawGBIF,path("out","gbif","rawGBIF.feather"))
     
-    unlink("datasetRefs.bib")
+    # Get original citations for downloaded data
     
-    future_walk(c(metaGBIF$doi,datasetRefs$DOI)
-                ,get_bib
-                ,outFile = "datasetRefs.bib"
-                )
+    # get_dataset_DOI <- function(xmlFile) {
+    #   
+    #   XML::xmlParse(xmlFile) %>%
+    #     XML::getNodeSet("//*/dataset") %>%
+    #     XML::xmlToDataFrame() %>%
+    #     dplyr::pull(alternateIdentifier)
+    #   
+    # }
     
-    fix_bib("datasetRefs.bib"
-            ,isPackageBib = FALSE
-            ,makeKey = TRUE
-            )
+    # datasetRefs <- dir_info(path("out","gbif",metaGBIF$key,"dataset")) %>%
+    #   dplyr::select(path) %>%
+    #   dplyr::mutate(DOI = map_chr(path,get_dataset_DOI))
+    # 
+    # unlink("datasetRefs.bib")
+    # 
+    # future_walk(c(metaGBIF$doi,datasetRefs$DOI)
+    #             ,get_bib
+    #             ,outFile = "datasetRefs.bib"
+    #             )
+    # 
+    # fix_bib("datasetRefs.bib"
+    #         ,isPackageBib = FALSE
+    #         ,makeKey = TRUE
+    #         )
     
   }
   
@@ -97,7 +103,7 @@
   
   rawGBIF <- read_feather(path("out","gbif","rawGBIF.feather"))
   
-  refsGBIF <- bib2df::bib2df("datasetRefs.bib")
+  # refsGBIF <- bib2df::bib2df("datasetRefs.bib")
   
   
   

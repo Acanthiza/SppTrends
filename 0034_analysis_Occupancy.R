@@ -193,18 +193,18 @@
   #--------Explore models-----------
   
   taxaModsOcc <- dat %>%
-    dplyr::mutate(mod = fs::path(outDir,paste0("occupancy_",Taxa,".rds"))
-                  , data = fs::path(outDir,paste0("occupancyDf_",Taxa,".feather"))
+    dplyr::mutate(modOcc = fs::path(outDir,paste0("occupancy_",Taxa,".rds"))
+                  , dataOcc = fs::path(outDir,paste0("occupancyDf_",Taxa,".feather"))
                   , exists = map_lgl(mod,file.exists)
                   ) %>%
     dplyr::filter(exists) %>%
-    dplyr::mutate(data = map(data,read_feather)
-                  , mod = map(mod,read_rds)
+    dplyr::mutate(dataOcc = map(dataOcc,read_feather)
+                  , modOcc = map(modOcc,read_rds)
                   ) %>%
-    dplyr::mutate(res = pmap(list(Taxa
+    dplyr::mutate(resOcc = pmap(list(Taxa
                                   , Common
-                                  , data
-                                  , mod
+                                  , dataOcc
+                                  , modOcc
                                   , respVar = "occ"
                                   , modType = "Occupancy"
                                   )

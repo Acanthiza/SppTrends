@@ -63,7 +63,7 @@
     dplyr::mutate(prop = success/trials
                   , listLengthLog = log(listLength)
                   ) %>%
-    tidyr::nest(data = c(any_of(analysisScales),year,list,contains("listLength"),success,trials,prop)) %>%
+    tidyr::nest(dataLL = c(any_of(analysisScales),year,list,contains("listLength"),success,trials,prop)) %>%
     dplyr::left_join(luTax %>%
                        dplyr::select(Taxa,Common)
                      )
@@ -128,14 +128,14 @@
     if(nrow(todo) > useCores/(if(testing) testChains else useChains)) {
       
       future_pwalk(list(todo$Taxa
-                      , todo$data
+                      , todo$dataLL
                       )
                ,ll
                )
       
     } else {
       
-      pwalk(list(todo$Taxa,todo$data),ll)
+      pwalk(list(todo$Taxa,todo$dataLL),ll)
       
     }
     
@@ -145,27 +145,21 @@
   
   #--------Explore models-----------
   taxaModsLL <- dat %>%
-    dplyr::mutate(mod = fs::path(outDir,paste0("list-length_",Taxa,".rds"))
+    dplyr::mutate(modLL = fs::path(outDir,paste0("list-length_",Taxa,".rds"))
                   , exists = map_lgl(mod,file.exists)
                   ) %>%
     dplyr::filter(exists) %>%
-    dplyr::mutate(mod = map(mod,read_rds)) %>%
-    dplyr::mutate(res = pmap(list(Taxa
+    dplyr::mutate(modLL = map(modLL,read_rds)) %>%
+    dplyr::mutate(resLL = pmap(list(Taxa
                                   , Common
-                                  , data
-                                  , mod
+                                  , dataLL
+                                  , modLL
                                   , modType = "List length"
                                   )
                              , mod_explore
                              )
                   )
   
-  taxaModsOverall <- taxaMods %>%
-    dplyr::full_join(taxaModsLL %>%
-                       dplyr::select(Taxa,where(is.list))
-                     , by = c("Taxa")
-                     , suffix = c("RR","LL")
-                     )
   
   timer$stop("ll", comment = paste0("Reporting rate models run for "
                                     ,nrow(taxaMods)

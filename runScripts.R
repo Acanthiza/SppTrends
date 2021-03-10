@@ -1,5 +1,5 @@
 
-  outName <- "new"
+  outName <- "2021-03-10-0637_agricultural zone"
     
   library(magrittr)
   
@@ -9,7 +9,7 @@
   
   testing <- T
   testRmd <- F
-  commitToGit <- T
+  commitToGit <- F
   
   getNewData <- FALSE
   

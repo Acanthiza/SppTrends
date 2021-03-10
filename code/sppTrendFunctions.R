@@ -670,6 +670,7 @@
                                , minCellsThresh = 0
                                , minYearSpanThresh = 10
                                , allQuartVisits = FALSE
+                               , timeVars = c("year")
                                ) {
     
     find_min_list_length <- function(df) {
@@ -726,8 +727,8 @@
     find_min_cells <- function(df) {
       
       df %>%
-        dplyr::distinct(year,quart,Taxa,geo2,cell) %>%
-        dplyr::count(year,quart,geo2,Taxa, name = "cells") %>%
+        dplyr::distinct({{timeVars}},Taxa,geo2,cell) %>%
+        dplyr::count({{timeVars}},geo2,Taxa, name = "cells") %>%
         dplyr::filter(cells == min(cells)) %>%
         dplyr::distinct(cells) %>%
         dplyr::pull(cells)
@@ -738,7 +739,7 @@
       
       df %>%
         dplyr::group_by(!!ensym(taxGroup),Taxa,across(any_of(analysisScales))) %>%
-        dplyr::mutate(minYear = min(year)
+        dplyr::summarise(minYear = min(year)
                       , maxYear = max(year)
                       , diffYear = maxYear - minYear
                       ) %>%
@@ -769,7 +770,7 @@
       if(allQuartVisits) {
         
         allQuarts <- df %>%
-          dplyr::distinct(!!ensym(taxGroup),year,cell,quart) %>%
+          dplyr::distinct(!!ensym(taxGroup),year,quart,cell) %>%
           dplyr::count(!!ensym(taxGroup),year,cell,name = "quarts") %>%
           dplyr::filter(quarts == 4) %>%
           dplyr::distinct(!!ensym(taxGroup),year,cell)
@@ -818,10 +819,10 @@
         dplyr::anti_join(removeTaxaWithFewOccurrences) %>%
         dplyr::anti_join(removeTaxaWithFewYears) %>%
         dplyr::anti_join(removeTaxaWithFewLengths) %>%
-        dplyr::distinct(year,quart,Taxa,geo2,cell) %>%
-        dplyr::count(year,quart,geo2,Taxa, name = "cells") %>%
+        dplyr::distinct({{timeVars}},Taxa,geo2,cell) %>%
+        dplyr::count({{timeVars}},geo2,Taxa, name = "cells") %>%
         dplyr::filter(cells < minCellsThresh) %>%
-        dplyr::distinct(year,geo2,Taxa)
+        dplyr::distinct({{timeVars}},geo2,Taxa)
       
       removeTooFewYears <- df %>%
         dplyr::anti_join(removeTaxaOnShortLists) %>%
@@ -829,10 +830,10 @@
         dplyr::anti_join(removeTaxaWithFewYears) %>%
         dplyr::anti_join(removeTaxaWithFewLengths) %>%
         dplyr::group_by(!!ensym(taxGroup),Taxa,across(any_of(analysisScales))) %>%
-        dplyr::mutate(minYear = min(year)
-                      , maxYear = max(year)
-                      , diffYear = maxYear - minYear
-                      ) %>%
+        dplyr::summarise(minYear = min(year)
+                         , maxYear = max(year)
+                         , diffYear = maxYear - minYear
+                         ) %>%
         dplyr::ungroup() %>%
         dplyr::filter(diffYear < minYearSpanThresh) %>%
         dplyr::distinct(!!ensym(taxGroup),Taxa,across(any_of(analysisScales)))
