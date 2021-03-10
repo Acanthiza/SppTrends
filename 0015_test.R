@@ -13,7 +13,7 @@ if(testing) {
               )
   
   genera <- c(NULL
-              , "Melithreptus"
+              #, "Melithreptus"
               #, "Pandion"
               #, "Haliaeetus"
               #, "Cacatua"
@@ -27,13 +27,21 @@ if(testing) {
               #, "Climacteris"
               )
   
+  spp <- c(NULL
+          , "Melithreptus gularis"
+          , "Melithreptus lunatus"
+          )
+  
   testOrder <- luTax %>%
     dplyr::filter(Order %in% orders)
   
   testGenus <- luTax %>%
     dplyr::filter(Genus %in% genera)
   
-  tests <- c(testOrder$Taxa,testGenus$Taxa)
+  testSpp <- luTax %>%
+    dplyr::filter(Taxa %in% spp)
+  
+  tests <- sort(unique(c(testOrder$Taxa,testGenus$Taxa,testSpp$Taxa)))
   
 }
   

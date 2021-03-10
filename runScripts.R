@@ -1,5 +1,5 @@
 
-  outName <- "2021-03-10-0637_agricultural zone"
+  outName <- "new"
     
   library(magrittr)
   
@@ -9,11 +9,11 @@
   
   testing <- T
   testRmd <- F
-  commitToGit <- F
+  commitToGit <- T
   
   getNewData <- FALSE
   
-  runReason <- paste0("Left original date (rather than lumping to month) in taxaAll. Testing = ",testing,".")
+  runReason <- paste0("Adjusted filter_taxa_data to accomodate varying time periods. Testing = ",testing,".")
   
   dir() %>%
     grep("^\\d{4}_.*\\.R$",.,value=TRUE) %>%
