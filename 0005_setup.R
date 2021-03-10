@@ -31,7 +31,7 @@
   
   # Which fields to collect from each data source - i.e. map the original source fields to these...
   collectFields <- c("LATITUDE","LONGITUDE"
-                     ,"date","year","month","yearmon"
+                     ,"date","year","month","yearmon","yday"
                      ,"SPECIES", "CommonName"
                      ,"METHODDESC","NUMOBSERVED","ISINDIGENOUSFLAG","Rank"                     
                      ,"maxDist"
@@ -300,7 +300,7 @@
   
   settings <- fs::path(outDir,".RData")
   
-  if(outNameRaw == "new") save.image(file = settings) else load(settings)
+  if(outNameRaw == "new") save.image(file = settings) #else load(settings)
 
   
 #-------

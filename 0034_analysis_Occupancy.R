@@ -9,62 +9,49 @@
   allScales <- c("geo1","geo2","cell") #in order
   analysisScales <- allScales#[-length(allScales)]
   
-  trials <- datTidy %>%
-    dplyr::distinct(year,quart,!!ensym(taxGroup),across(any_of(allScales))) %>%
-    dplyr::group_by(year,quart,!!ensym(taxGroup),across(any_of(analysisScales))) %>%
-    dplyr::summarise(trials = n()) %>%
-    dplyr::ungroup()
-  
   success <- datTidy %>%
-    dplyr::distinct(Taxa,year,quart,!!ensym(taxGroup),across(any_of(allScales))) %>%
-    dplyr::group_by(Taxa,year,quart,!!ensym(taxGroup),across(any_of(analysisScales))) %>%
+    dplyr::distinct(Taxa,year,yday,!!ensym(taxGroup),across(any_of(allScales))) %>%
+    dplyr::group_by(Taxa,year,yday,!!ensym(taxGroup),across(any_of(analysisScales))) %>%
     dplyr::summarise(success = n()) %>%
     dplyr::ungroup()
   
-  datFiltered <- trials %>%
-    dplyr::left_join(success) %>%
-    dplyr::mutate(list = paste0(year,"-",quart,"-",!!ensym(taxGroup),"-",get(analysisScales[length(analysisScales)]))) %>%
+  datFiltered <- success %>%
+    dplyr::mutate(list = paste0(year,"-",yday,"-",!!ensym(taxGroup),"-",get(analysisScales[length(analysisScales)]))) %>%
     dplyr::add_count(list, name = "listLength") %>%
     filter_taxa_data(minListLengthThresh = 0
                      , maxListLengthOccurenceThresh = 0
                      , minlistOccurenceThresh = 0
                      , minYearsThresh = 3
                      , minListLengthsThresh = 0
-                     , minCellsThresh = 5
+                     , minCellsThresh = 3
                      , minYearSpanThresh = 10
-                     , allQuartVisits = TRUE
+                     #, allQuartVisits = TRUE
+                     , timeVars = c("year","yday")
                      )
   
-  taxaGeo <- datFiltered %>%
-    dplyr::distinct(!!ensym(taxGroup)
-                    ,Taxa
-                    ,across(any_of(allScales))
-                    )
-  
-  cellYear <- datFiltered %>%
-    dplyr::inner_join(taxaGeo) %>%
-    dplyr::distinct(!!ensym(taxGroup)
-                    , cell
-                    , year
-                    )
   
   #-------Data prep---------
   
+  data_pivot_fill_zero <- function(df) {
+    
+    df %>%
+      tidyr::pivot_wider(names_from = c("Taxa","yday"), values_from = "success",values_fill = 0) %>%
+      tidyr::pivot_longer(cols = contains(unique(taxaGeo$Taxa))
+                          , names_to = c("Taxa","yday")
+                          , names_sep = "_"
+                          , values_to = "success"
+                          )
+    
+  }
+  
   dat <- datFiltered %>%
-    dplyr::select(year,quart,!!ensym(taxGroup),geo1,geo2,cell,Taxa,success) %>%
-    dplyr::inner_join(taxaGeo) %>%
-    tidyr::pivot_wider(names_from = c("Taxa","quart"), values_from = "success", values_fill = 0) %>%
-    tidyr::pivot_longer(cols = contains(unique(taxaGeo$Taxa))
-                        , names_to = c("Taxa","quart")
-                        , names_sep = "_"
-                        , values_to = "success"
-                        ) %>%
-    dplyr::inner_join(taxaGeo) %>%
-    dplyr::inner_join(cellYear) %>%
+    tidyr::nest(data = -c(Taxa,geo1,geo2)) %>%
+    dplyr::mutate(data = map(data,data_pivot_fill_zero)) %>%
+    tidyr::unnest(cols = c(data)) %>%
     purrr::when(testing ~ (.) %>% dplyr::filter(Taxa %in% tests)
                 , !testing ~ (.)
                 ) %>%
-    tidyr::nest(data = c(any_of(analysisScales),year,quart,success)) %>%
+    tidyr::nest(data = c(any_of(analysisScales),year,yday,success)) %>%
     dplyr::left_join(luTax %>%
                        dplyr::select(Taxa,Common)
                      )

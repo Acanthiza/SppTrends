@@ -9,6 +9,7 @@
     dplyr::mutate(date = VISITDATE
                   , year = year(VISITDATE)
                   , month = month(VISITDATE)
+                  , yday = yday(VISITDATE)
                   , yearmon = as.numeric(paste0(year,sprintf("%02d",month)))
                   ) %>%
     dplyr::add_count(SPECIES, name = "records") %>%
@@ -42,6 +43,7 @@
                     , SPECIES = str_extract(scientificName,"[[:alpha:]]+\\s[[:alpha:]]+")
                     , year = as.numeric(substr(eventDate,1,4))
                     , month = as.numeric(substr(eventDate,6,7))
+                    , yday = yday(date)
                     , yearmon = as.numeric(paste0(year,substr(eventDate,6,7)))
                     ) %>%
       dplyr::distinct(LATITUDE = decimalLatitude
@@ -49,6 +51,7 @@
                     , date
                     , year
                     , month
+                    , yday
                     , yearmon
                     , SPECIES
                     , CommonName = vernacularName
@@ -77,7 +80,8 @@
   
   
   #-------Combine-------
-  taxaAll <- ls(pattern = "^taxa[[:upper:]]+") %>%
+  
+  taxaAll <- ls(pattern = "^taxa[[:upper:]]+$") %>%
     enframe(name = NULL, value = "objects") %>%
     dplyr::filter(!grepl("All",objects)) %>%
     dplyr::mutate(data = map(objects,get)) %>%

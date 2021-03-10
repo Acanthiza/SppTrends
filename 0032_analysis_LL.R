@@ -146,7 +146,7 @@
   #--------Explore models-----------
   taxaModsLL <- dat %>%
     dplyr::mutate(modLL = fs::path(outDir,paste0("list-length_",Taxa,".rds"))
-                  , exists = map_lgl(mod,file.exists)
+                  , exists = map_lgl(modLL,file.exists)
                   ) %>%
     dplyr::filter(exists) %>%
     dplyr::mutate(modLL = map(modLL,read_rds)) %>%

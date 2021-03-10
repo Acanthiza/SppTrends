@@ -23,10 +23,9 @@
                   )
   
   sitesAOI <- sitesAll %>%
-    st_join(aoi
-            , join = st_intersects
-            ) %>%
-    dplyr::filter(!is.na(Include))
+    sf::st_join(aoi
+                , left = FALSE
+                )
 
   taxaAllDatesAOI <- taxaAllDates %>%
     dplyr::inner_join(sitesAOI %>% st_set_geometry(NULL) %>% dplyr::select(LATITUDE,LONGITUDE))
@@ -37,7 +36,7 @@
   taxaAllDatesAOITax <- taxaAllDatesAOI %>%
     dplyr::left_join(luGBIF[,c("id","Taxa","Rank")], by = c("SPECIES" = "id")) %>%
     dplyr::filter(Rank > "Genus") %>%
-    dplyr::count(Taxa,LATITUDE,LONGITUDE,date,year,month,quart,yearmon,name="siteRecords") %>%
+    dplyr::count(Taxa,LATITUDE,LONGITUDE,date,year,month,yday,quart,yearmon,name="siteRecords") %>%
     dplyr::left_join(luTax)
   
   
@@ -94,7 +93,7 @@
   #------dat--------
   datTidy <- taxaAllDatesAOITaxTaxGroup %>%
     dplyr::inner_join(siteGeoContext) %>%
-    dplyr::distinct(!!ensym(taxGroup),Taxa,year,month,quart,yearmon,geo1,geo2,cell,site) %>%
+    dplyr::distinct(!!ensym(taxGroup),Taxa,date,year,month,yday,quart,yearmon,geo1,geo2,cell,site) %>%
     dplyr::mutate(cell = as.factor(cell)
                   , site = as.factor(site)
                   ) %>%
