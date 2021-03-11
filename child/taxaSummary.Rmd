@@ -2,144 +2,51 @@
 
   summariseTaxa <- "{{thisTaxa}}"
 
-  taxaDat <- taxaModsOverall %>%
+  thisTaxaMods <- taxaMods %>%
     dplyr::mutate(thisTaxa = gsub(" ","",Taxa)) %>%
-    dplyr::filter(thisTaxa == summariseTaxa)
+    dplyr::filter(thisTaxa == summariseTaxa) %>%
+    dplyr::mutate(modLoop = paste0(thisTaxa,gsub(" ","",type)))
 
-  taxa <- taxaDat$Taxa[[1]]
+  taxa <- thisTaxaMods$Taxa[[1]]
 
-  common <- taxaDat$Common[[1]]
+  common <- thisTaxaMods$Common[[1]]
   
 ```
 
 ## _`r taxa`_: `r common`
 
-### Reporting rate
+```{r taxaModelPrep{{thisTaxa}}, include=FALSE}
 
-```{r rrData{{thisTaxa}}}
+  taxaModel = NULL
 
-  mod <- taxaDat$modRR[[1]]
-
-  modType <- "reporting rate"
-
-```
-
-The model specification was:
-
-``r format(formula(mod))``
-
-This required the estimation of `r sum(!grepl("^b",names(as_tibble(mod))))` parameters based on `r nrow(mod$data)` data points.
-
-Figure \@ref(fig:rrFig{{thisTaxa}}) shows results from the reporting rate model. Table \@ref(tab:rrTab{{thisTaxa}}) shows the effect of year on reporting rate of _`r taxa`_.
-
-For _`r taxa`_, `r paste0("in ",recent, " compared with ", reference)`, `r modType` was `r vec_to_sentence(taxaDat$resRR[[1]]$yearDifferenceRes$text)` (Figure \@ref(fig:rrYearDiffPlot{{thisTaxa}})).
-
-<br>
-
-```{r rrFig{{thisTaxa}}, fig.height = 8, fig.width = 7, fig.cap = paste0("Reporting rate for _",taxa,"_")}
-
-  taxaDat$resRR[[1]]$plotRibbon
+  for (i in thisTaxaMods$modLoop) {
+    
+    thisMod <- i
+    
+    taxaModel = c(taxaModel, knit_expand('child/taxaModel.Rmd'))
+    
+  }
 
 ```
 
-<br>
-
-```{r rrTab{{thisTaxa}}}
-
-  taxaDat$resRR[[1]]$yearDifferenceRes %>%
-    dplyr::select(`IBRA Region` = geo1
-                  , `IBRA Subregion` = geo2
-                  , `Probability` = lower
-                  , `Likelihood` = likelihood
-                  ) %>%
-    kable(caption = paste0("Likelihood of "
-                                 ,recent
-                                 ," reporting rate being lower than "
-                                 ,reference
-                                 )
-          )
-
-```
-
-<br>
-
-```{r rrYearDiffPlot{{thisTaxa}}, fig.height = 8, fig.width = 7, fig.cap = paste0("Difference in ",testYears$year[testYears$type == "recent"]," ",tolower(modType)," compared to ",testYears$year[testYears$type == "reference"]," for _",taxa,"_")}
-
-  taxaDat$resRR[[1]]$yearDifferencePlot
-
-```
-
-<br>
-
-### List length
-
-```{r llData{{thisTaxa}}}
-
-  mod <- taxaDat$modLL[[1]]
-
-  modType <- "list length corrected reporting rate"
-
-```
-
-The model specification was:
-
-``r format(formula(mod))``
-
-This required the estimation of `r sum(!grepl("^b",names(as_tibble(mod))))` parameters based on `r nrow(mod$data)` data points.
-
-Figure \@ref(fig:llFig{{thisTaxa}}) shows results from the list length model. Table \@ref(tab:llTab{{thisTaxa}}) shows the effect of year on reporting rate of _`r taxa`_.
-
-For _`r taxa`_, `r paste0("in ",recent, " compared with ", reference)`, `r modType` was `r vec_to_sentence(taxaDat$resLL[[1]]$yearDifferenceRes$text)` (Figure \@ref(fig:llYearDiffPlot{{thisTaxa}})).
-
-<br>
-
-```{r llFig{{thisTaxa}}, fig.height = 8, fig.width = 7, fig.cap = paste0("List length corrected reporting rate for _",taxa,"_")}
-
-  taxaDat$resLL[[1]]$plotRibbon
-
-```
-
-<br>
-
-```{r llTab{{thisTaxa}}}
-
-  medianLL <- unique(taxaDat$resLL[[1]]$yearDifferenceRes$listLength)
-
-  taxaDat$resLL[[1]]$yearDifferenceRes %>%
-    dplyr::select(`IBRA Region` = geo1
-                  , `IBRA Subregion` = geo2
-                  , `Probability` = lower
-                  , `Likelihood` = likelihood
-                  ) %>%
-    kable(caption = paste0("Likelihood of "
-                           ,recent
-                           ," list length corrected reporting rate being lower than "
-                           ,reference
-                           , " at median list length of "
-                           , medianLL
-                           )
-          )
-
-```
-
-<br>
-
-```{r llYearDiffPlot{{thisTaxa}}, fig.height = 8, fig.width = 7, fig.cap = paste0("Effect of year on list-length-corrected reporting-rate for _", taxa, "_ at median list length of ", medianLL)}
-
-  taxaDat$resLL[[1]]$yearDifferencePlot
-
-```
-
-<br>
+`r paste(knit(text = taxaModel), collapse = '\n')`
 
 ### Overall
 
-Treating each method and each geographic area as equivalent in determining overall trend, _`r taxa`_ was `r taxaDat$overall[[1]]$yearDiffOverallRes$text` (Figure \@ref(fig:overallYearEffectPlot{{thisTaxa}})).
+```{r dataOverall{{thisTaxa}}}
+
+  taxaDat <- taxaModsOverall %>%
+    dplyr::mutate(thisTaxa = gsub(" ","",Taxa)) %>%
+    dplyr::filter(thisTaxa == summariseTaxa)
+
+```
+
+`r taxaDat$overall[[1]]$yearDiffText`. (Figure \@ref(fig:overallYearEffectPlot{{thisTaxa}})).
 
 <br>
 
 ```{r overallYearEffectPlot{{thisTaxa}}, fig.width = 7, fig.cap = paste0("Overall effect of year on _",taxa,"_")}
-
-  taxaDat$overall[[1]]$yearDiffOverallPlot  
+  
+  taxaDat$overall[[1]]$yearDiffOverallPlot
 
 ```

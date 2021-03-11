@@ -12,7 +12,7 @@ output:
     fig_caption: yes
 link-citations: no
 csl:                          common/BibStyle.csl
-bibliography:                 [common/refs.bib,packageRefs.bib,datasetRefs.bib]
+bibliography:                 [common/refs.bib,packageRefs.bib,gbifDataRef.bib]
 ---
 
 
@@ -44,7 +44,7 @@ bibliography:                 [common/refs.bib,packageRefs.bib,datasetRefs.bib]
 
 Records were extracted from the Global Biodiversity Information Facility using the `occ_download` function in the `rgbif` package `r cite_package("rgbif")`.
 
-Total records: `r format(nrow(taxaAll),big.mark = ",")` [`r paste0("@",refsGBIF[1,2])`].
+Total records: `r format(nrow(taxaAll),big.mark = ",")` [@GBIFRef].
 
 
 # Tidy
@@ -69,13 +69,13 @@ Total tidied records: `r format(nrow(dat),big.mark=",")`.
 
   taxGroupExp = NULL
 
-  taxGroupNames <- taxaModsOverall %>%
+  taxGroupNames <- taxaMods %>%
     dplyr::distinct(!!ensym(taxGroup)) %>%
     dplyr::mutate(gbifInfo = map(!!ensym(taxGroup),name_backbone)) %>%
     tidyr::unnest(cols = c(gbifInfo)) %>%
     dplyr::mutate(Common = map_chr(usageKey,get_gbif_common))
 
-  taxGroupLoop <- taxaModsOverall %>%
+  taxGroupLoop <- taxaMods %>%
     dplyr::pull(!!ensym(taxGroup)) %>%
     unique() %>%
     sort() %>%

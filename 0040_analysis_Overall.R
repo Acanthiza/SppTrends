@@ -1,28 +1,22 @@
 
-  taxaModsOverall <- taxaMods %>%
-    dplyr::full_join(taxaModsLL %>%
-                       dplyr::select(Taxa,where(is.list))
-                     , by = c("Taxa")
-                     #, suffix = c("RR","LL")
-                     ) %>%
-    dplyr::full_join(taxaModsOcc %>%
-                       dplyr::select(Taxa,where(is.list))
-                     , by = c("Taxa")
-                     )
+  taxaMods <- ls(pattern = "taxaMods[[:upper:]]{2}") %>%
+    tibble::enframe(name = NULL, value = "obj") %>%
+    dplyr::mutate(data = map(obj,get)) %>%
+    tidyr::unnest(cols = c(data))
   
-  taxaModsOverall <- taxaModsOverall %>%
-      dplyr::mutate(overall = pmap(list(Taxa
-                                        , Common
-                                        , resRR
-                                        , resLL
-                                        , resOcc
-                                        )
-                                   , function(a,b,c,d,e) year_difference_overall(a
-                                                                               , b
-                                                                               , c$yearDifferenceDf
-                                                                               , d$yearDifferenceDf
-                                                                               , e$yearDifferenceDf
-                                                                               )
-                                   )
-                    )
+  taxaModsOverall <- taxaMods %>%
+    dplyr::mutate(yearDiffDf = map(res,"yearDifferenceDf")) %>%
+    dplyr::select(type,yearDiffDf) %>%
+    tidyr::unnest(cols = c(yearDiffDf)) %>%
+    tidyr::nest(data = -c(Taxa,Common)) %>%
+    dplyr::mutate(overall = pmap(list(Taxa
+                                      , Common
+                                      , data
+                                      )
+                                   , function(a,b,c) year_difference_overall(a
+                                                                             , b
+                                                                             , c
+                                                                             )
+                                 )
+                  )
     

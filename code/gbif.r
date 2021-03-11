@@ -52,7 +52,12 @@
   metaGBIF$date <- info %>%
     dplyr::pull(created)
   
-  metaGBIF$ref <- get_bib(metaGBIF$doi,outFile = NULL)
+  metaGBIF$ref <- get_bib(metaGBIF$doi,outFile = "gbifDataRef.bib")
+  
+  # Make a reference for the download
+  ref <- read_lines("gbifDataRef.bib")
+  ref[1] <- paste0("@misc{GBIFRef,")
+  write_lines(ref,"gbifDataRef.bib")
   
   
   #-------unzip gbif data--------

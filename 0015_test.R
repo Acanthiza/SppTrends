@@ -13,9 +13,9 @@ if(testing) {
               )
   
   genera <- c(NULL
-              #, "Melithreptus"
-              #, "Pandion"
-              #, "Haliaeetus"
+              , "Melithreptus"
+              , "Pandion"
+              , "Haliaeetus"
               #, "Cacatua"
               #, "Myiagra"
               #, "Pseudonaja"

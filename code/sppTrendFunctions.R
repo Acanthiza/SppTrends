@@ -3,11 +3,11 @@
                           , Common
                           , df
                           , mod
+                          , modType
                           , respVar = "prop"
                           , expVar = c(analysisScales,"year")
                           , maxLevels = 30
                           , draws = 200
-                          , modType
                           , postGroups = c("Taxa"
                                            ,"Common"
                                            ,"listLength"
@@ -142,59 +142,67 @@
     
     
     #-------residuals-------
-
-    res$resid <- tibble(residual = residuals(mod)
+    
+    if(length(residuals(mod)) == nrow(df)) {
+      
+      res$resid <- tibble(residual = residuals(mod)
                         , fitted = fitted(mod)
                         ) %>%
       dplyr::bind_cols(df)
+      
 
-    res$residPlot <- ggplot(res$resid, aes(fitted,residual)) +
-      geom_point(size = 2) +
-      geom_hline(aes(yintercept = 0), linetype = 2, colour = "red") +
-      theme(axis.text.x = element_text(angle = 90, vjust = 0.5, hjust=1)) %>%
-      scale_colour_viridis_d(end=0.9)
-
-    res$residPlotNum <- if(hasNumeric) {
-
-      ggplot(res$resid %>%
-               dplyr::select_if(is.numeric) %>%
-               tidyr::pivot_longer(2:ncol(.))
-             , aes(value,residual)
-             ) +
+      res$residPlot <- ggplot(res$resid, aes(fitted,residual)) +
         geom_point(size = 2) +
-        geom_smooth(method = "lm")  +
         geom_hline(aes(yintercept = 0), linetype = 2, colour = "red") +
-        facet_wrap(~name
-                   , scales = "free_x"
-                   ) +
-        theme(axis.text.x = element_text(angle = 90, vjust = 0.5, hjust=1)) +
-        scale_colour_viridis_d()
+        theme(axis.text.x = element_text(angle = 90, vjust = 0.5, hjust=1)) %>%
+        scale_colour_viridis_d(end=0.9)
+      
+  
+      res$residPlotNum <- if(hasNumeric) {
+  
+        ggplot(res$resid %>%
+                 dplyr::select_if(is.numeric) %>%
+                 tidyr::pivot_longer(2:ncol(.))
+               , aes(value,residual)
+               ) +
+          geom_point(size = 2) +
+          geom_smooth(method = "lm")  +
+          geom_hline(aes(yintercept = 0), linetype = 2, colour = "red") +
+          facet_wrap(~name
+                     , scales = "free_x"
+                     ) +
+          theme(axis.text.x = element_text(angle = 90, vjust = 0.5, hjust=1)) +
+          scale_colour_viridis_d()
 
     } else NULL
+      
 
-    res$residPlotChar <- if(hasCharacter) {
+      res$residPlotChar <- if(hasCharacter) {
 
-      ggplot(res$resid %>%
-               dplyr::mutate(across(where(is.factor),as.character)) %>%
-               dplyr::select(1,where(is.character)) %>%
-               tidyr::pivot_longer(2:ncol(.)) %>%
-               dplyr::group_by(name) %>%
-               dplyr::mutate(levels = n_distinct(value)) %>%
-               dplyr::ungroup() %>%
-               dplyr::filter(levels < maxLevels)
-             , aes(value,residual)
-             ) +
-        geom_boxplot() +
-        geom_hline(aes(yintercept = 0), linetype = 2, colour = "red") +
-        facet_wrap(~name, scales = "free") +
-        theme(axis.text.x = element_text(angle = 90, vjust = 0.5, hjust=1))
+        ggplot(res$resid %>%
+                 dplyr::mutate(across(where(is.factor),as.character)) %>%
+                 dplyr::select(1,where(is.character)) %>%
+                 tidyr::pivot_longer(2:ncol(.)) %>%
+                 dplyr::group_by(name) %>%
+                 dplyr::mutate(levels = n_distinct(value)) %>%
+                 dplyr::ungroup() %>%
+                 dplyr::filter(levels < maxLevels)
+               , aes(value,residual)
+               ) +
+          geom_boxplot() +
+          geom_hline(aes(yintercept = 0), linetype = 2, colour = "red") +
+          facet_wrap(~name, scales = "free") +
+          theme(axis.text.x = element_text(angle = 90, vjust = 0.5, hjust=1))
 
-    } else NULL
+      } else NULL
+      
+    }
+    
 
 
     #---------post explore-------
     
-    if(family(mod)$family == "beta") class(mod) <- c(class(mod),"betareg")
+    #if(family(mod)$family == "beta") class(mod) <- c(class(mod),"betareg")
     
     isBinomialMod <- family(mod)$family == "binomial"
 
@@ -479,17 +487,13 @@
     
   }
   
-  year_difference_overall <- function(Taxa,Common,rrYearDiffDf,llYearDiffDf,occYearDiffDf) {
+  year_difference_overall <- function(Taxa,Common,yearDiffDfs) {
     
     plotTitles <- bquote(~italic(.(Taxa))*":" ~ .(Common))
     
     res <- list()
     
-    res$yearDiffOverallDf <- rrYearDiffDf %>%
-      dplyr::bind_rows(llYearDiffDf) %>%
-      dplyr::bind_rows(occYearDiffDf)
-    
-    res$yearDiffOverallRes <- res$yearDiffOverallDf %>%
+    res$yearDiffOverallRes <- yearDiffDfs %>%
       dplyr::summarise(n = n()
                        , increase = sum(diff > 0)/n
                        , decline = sum(diff < 0)/n
@@ -514,7 +518,25 @@
                                   )
                     )
     
-    res$yearDiffOverallPlot <- res$yearDiffOverallDf %>%
+    res$yearDiffText <- paste0(
+      Taxa
+      , if(!is.null(Common)) paste0(" (",Common,")")
+      , " was "
+      , res$yearDiffOverallRes$text
+      , " across "
+      , aoiFullName
+      , " based on "
+      , n_distinct(yearDiffDfs$type)
+      , " models ("
+      , vec_to_sentence(unique(yearDiffDfs$type))
+      , ") using data from "
+      , n_distinct(yearDiffDfs$geo2)
+      , " IBRA Subregions ("
+      , vec_to_sentence(unique(yearDiffDfs$geo2))
+      , ")"
+    )
+    
+    res$yearDiffOverallPlot <- yearDiffDfs %>%
       dplyr::mutate(likelihood = res$yearDiffOverallRes$likelihood) %>%
       ggplot(aes(diff,fill = likelihood)) +
       geom_density() +
@@ -668,6 +690,7 @@
                                , minYearsThresh = 3
                                , minListLengthsThresh = 2
                                , minCellsThresh = 0
+                               , minSitesThresh = 0
                                , minYearSpanThresh = 10
                                , timeVars = c("year")
                                ) {
@@ -734,6 +757,17 @@
       
     }
     
+    find_min_sites <- function(df) {
+      
+      df %>%
+        dplyr::distinct(across(any_of(timeVars)),Taxa,geo2,cell,site) %>%
+        dplyr::count(year,geo2,Taxa,cell, name = "sites") %>%
+        dplyr::filter(sites == min(sites)) %>%
+        dplyr::distinct(sites) %>%
+        dplyr::pull(sites)
+      
+    }
+    
     find_min_year_span <-function(df) {
       
       df %>%
@@ -755,6 +789,7 @@
     minYears <- find_min_years(df)
     minLengths <- find_min_list_lengths(df)
     minCells <- find_min_cells(df)
+    minSites <- find_min_sites(df)
     minYearSpan <- find_min_year_span(df)
     
     while(minListLength < minListLengthThresh |
@@ -810,6 +845,17 @@
         dplyr::filter(cells < minCellsThresh) %>%
         dplyr::distinct(year,geo2,Taxa)
       
+      removeTooFewSites <- df %>%
+        dplyr::anti_join(removeTaxaOnShortLists) %>%
+        dplyr::anti_join(removeTaxaWithFewOccurrences) %>%
+        dplyr::anti_join(removeTaxaWithFewYears) %>%
+        dplyr::anti_join(removeTaxaWithFewLengths) %>%
+        dplyr::anti_join((removeTooFewCells)) %>%
+        dplyr::distinct(across(any_of(timeVars)),Taxa,geo2,cell,site) %>%
+        dplyr::count(year,geo2,Taxa,cell, name = "sites") %>%
+        dplyr::filter(sites < minSitesThresh) %>%
+        dplyr::distinct(year,geo2,Taxa,cell)
+      
       removeTooFewYears <- df %>%
         dplyr::anti_join(removeTaxaOnShortLists) %>%
         dplyr::anti_join(removeTaxaWithFewOccurrences) %>%
@@ -832,6 +878,7 @@
         dplyr::anti_join(removeTaxaWithFewYears) %>%
         dplyr::anti_join(removeTaxaWithFewLengths) %>%
         dplyr::anti_join(removeTooFewCells) %>%
+        dplyr::anti_join(removeTooFewSites) %>%
         dplyr::anti_join(removeTooFewYears) %>%
         dplyr::add_count(list, name = "listLength")
       
@@ -841,6 +888,7 @@
       minYears <- find_min_years(df)
       minLengths <- find_min_list_lengths(df)
       minCells <- find_min_cells(df)
+      minSites <- find_min_sites(df)
       minYearSpan <- find_min_year_span(df)
       
       res <- paste0("Minimum list length = ",minListLength
@@ -849,6 +897,7 @@
                     ,"\nMinimum years = ",minYears
                     ,"\nMinimum list lengths = ",minLengths
                     ,"\nMinimum cells per Taxa, Geo2, Year = ",minCells
+                    ,"\nMinimum sites per Taxa, Geo2, Year, Cell = ",minSites
                     ,"\nMinimum year span = ",minYearSpan
                     ,"\nTotal records = ",nrow(df)
                     ,"\n"

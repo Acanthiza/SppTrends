@@ -13,7 +13,7 @@
   
   # What is the area of interest (AOI) for this analysis?
   aoiName <- c("FLB","KAN","EYB","MDD","NCP","SVP")
-  aoiFullName <- "agricultural zone"
+  aoiFullName <- "the agricultural zone of South Australia"
   Statewide <- F
   
   # Taxonomic grouping
@@ -233,6 +233,11 @@
   # IBRA Sub
   ibraSub <- st_read("shp/LANDSCAPE_IbraSubregionAust70.shp") %>%
     st_transform(crs = 3577)
+  
+  luGeo <- ibraSub %>%
+    st_set_geometry(NULL) %>%
+    dplyr::distinct(IBRA_SUB_N,IBRA_SUB_C,IBRA_SUB_1,IBRA_REG_N,IBRA_REG_C,IBRA_REG_1)
+    
 
   polys <- ibraSub
 

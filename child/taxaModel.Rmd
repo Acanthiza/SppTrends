@@ -1,0 +1,71 @@
+```{r dataMod{{thisMod}}}
+
+  useMod <- "{{thisMod}}"
+  
+  thisMod <- thisTaxaMods %>%
+    dplyr::filter(modLoop == useMod)
+  
+  modType <- thisMod$type
+
+```
+
+### `r modType`
+
+```{r data{{thisMod}}}
+
+  mod <- thisMod$mod[[1]]
+
+```
+
+The model specification was:
+
+``r format(formula(mod))``
+
+This required the estimation of `r sum(!grepl("^b",names(as_tibble(mod))))` parameters based on `r nrow(mod$data)` data points.
+
+Figure \@ref(fig:modFig{{thisMod}}) shows results from the reporting rate model. Table \@ref(tab:modTab{{thisMod}}) shows the effect of year on reporting rate of _`r taxa`_.
+
+For _`r taxa`_, `r paste0("in ",recent, " compared with ", reference)`, `r modType` was `r vec_to_sentence(thisMod$res[[1]]$yearDifferenceRes$text)` (Figure \@ref(fig:modYearDiffPlot{{thisMod}})).
+
+<br>
+
+```{r modFig{{thisMod}}, fig.height = 8, fig.width = 7, fig.cap = paste0("Reporting rate for _",taxa,"_")}
+
+  thisMod$res[[1]]$plotRibbon
+
+```
+
+<br>
+
+```{r modTab{{thisMod}}}
+
+  thisMod$res[[1]]$yearDifferenceRes %>%
+    dplyr::left_join(luGeo %>%
+                       dplyr::rename(geo1 = IBRA_REG_N
+                                     , geo2 = IBRA_SUB_N
+                                     )
+                       ) %>%
+    dplyr::arrange(geo1,geo2) %>%
+    dplyr::select(`IBRA Region` = geo1
+                  , `IBRA Subregion` = geo2
+                  , `Probability` = lower
+                  , `Likelihood` = likelihood
+                  ) %>%
+    kable(caption = paste0("Likelihood of "
+                                 ,recent
+                                 ," reporting rate being lower than "
+                                 ,reference
+                           )
+          )
+
+```
+
+<br>
+
+```{r modYearDiffPlot{{thisMod}}, fig.height = 8, fig.width = 7, fig.cap = paste0("Difference in ",testYears$year[testYears$type == "recent"]," ",tolower(modType)," compared to ",testYears$year[testYears$type == "reference"]," for _",taxa,"_")}
+
+  thisMod$res[[1]]$yearDifferencePlot
+
+```
+
+<br>

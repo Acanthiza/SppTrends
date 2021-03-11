@@ -6,14 +6,12 @@
   
   # Sampling unit for occupancy is based on a cell within a yearmon. Thus, success is presence within a cell in a yearmon
   
-  allScales <- c("geo1","geo2","cell") #in order
-  analysisScales <- allScales#[-length(allScales)]
+  allScales <- c("geo1","geo2","cell","site") #in order
+  analysisScales <- allScales[-length(allScales)]
   
   success <- datTidy %>%
     dplyr::distinct(Taxa,year,yday,!!ensym(taxGroup),across(any_of(allScales))) %>%
-    dplyr::group_by(Taxa,year,yday,!!ensym(taxGroup),across(any_of(analysisScales))) %>%
-    dplyr::summarise(success = n()) %>%
-    dplyr::ungroup()
+    dplyr::mutate(success = 1)
   
   datFiltered <- success %>%
     dplyr::mutate(list = paste0(year,"-",yday,"-",!!ensym(taxGroup),"-",get(analysisScales[length(analysisScales)]))) %>%
@@ -24,6 +22,7 @@
                      , minYearsThresh = 3
                      , minListLengthsThresh = 0
                      , minCellsThresh = 3
+                     , minSitesThresh = 3
                      , minYearSpanThresh = 10
                      #, allQuartVisits = TRUE
                      , timeVars = c("year","yday")
@@ -32,26 +31,32 @@
   
   #-------Data prep---------
   
-  data_pivot_fill_zero <- function(df) {
-    
-    df %>%
-      tidyr::pivot_wider(names_from = c("Taxa","yday"), values_from = "success",values_fill = 0) %>%
-      tidyr::pivot_longer(cols = contains(unique(taxaGeo$Taxa))
-                          , names_to = c("Taxa","yday")
-                          , names_sep = "_"
-                          , values_to = "success"
-                          )
-    
-  }
+  # data_pivot_fill_zero <- function(df) {
+  #   
+  #   df %>%
+  #     tidyr::pivot_wider(names_from = c("Taxa","yday"), values_from = "success",values_fill = 0) %>%
+  #     tidyr::pivot_longer(cols = contains(unique(taxaGeo$Taxa))
+  #                         , names_to = c("Taxa","yday")
+  #                         , names_sep = "_"
+  #                         , values_to = "success"
+  #                         )
+  #   
+  # }
   
-  dat <- datFiltered %>%
-    tidyr::nest(data = -c(Taxa,geo1,geo2)) %>%
-    dplyr::mutate(data = map(data,data_pivot_fill_zero)) %>%
-    tidyr::unnest(cols = c(data)) %>%
+  siteYearVisit <- datFiltered %>%
+    dplyr::distinct(across(any_of(taxGroup)),geo1,geo2,cell,site,year,yday,list,listLength)
+  
+  taxaCellYear <- datFiltered %>%
+    dplyr::distinct(across(any_of(taxGroup)),Taxa,cell,year)
+  
+  dat <- siteYearVisit %>%
+    dplyr::left_join(taxaCellYear) %>%
+    dplyr::left_join(datFiltered) %>%
+    dplyr::mutate(success = if_else(is.na(success),0,success)) %>%
     purrr::when(testing ~ (.) %>% dplyr::filter(Taxa %in% tests)
                 , !testing ~ (.)
                 ) %>%
-    tidyr::nest(data = c(any_of(analysisScales),year,yday,success)) %>%
+    tidyr::nest(data = -c(Order,Taxa)) %>%
     dplyr::left_join(luTax %>%
                        dplyr::select(Taxa,Common)
                      )
@@ -67,16 +72,22 @@
     geos <- length(unique(data$geo2))
     
     datOcc <- data %>%
-      tidyr::pivot_wider(names_from = "quart"
-                         , values_from = "success"
-                         ) %>%
-      tidyr::nest(data = -c(year,geo2)) %>%
-      dplyr::mutate(trials = map_dbl(data,nrow)) %>%
+      dplyr::distinct(year,geo2,cell,yday,site,success) %>%
+      tidyr::nest(data = -c(year,geo2,cell)) %>%
+      dplyr::mutate(data = map(data, . %>%
+                                 tidyr::pivot_wider(names_from = "yday"
+                                                    , values_from = "success"
+                                                    #, values_fill = 0
+                                                    )
+                               )
+                    , trials = map_dbl(data,nrow)
+                    ) %>%
+      dplyr::filter(trials > 2) %>%
       
       #dplyr::sample_n(2) %>% # TESTING
       
       dplyr::mutate(umf = map(data
-                              , function(x) unmarkedFrameOccu(y = x %>% dplyr::select(grep("q\\d{1}",names(x),value = TRUE)))
+                              , function(x) unmarkedFrameOccu(y = x %>% dplyr::select(-1))
                               )
                   , modYear = map(umf
                               , function(x) unmarked::occu(~1 ~1
@@ -86,8 +97,8 @@
                   , occ = map_dbl(modYear
                               , ~backTransform(.,type = "state")@estimate
                               )
-                  , occ = if_else(occ == 0, 0.000000001,occ)
-                  , occ = if_else(occ == 1, 0.999999999,occ)
+                   , occ = if_else(occ == 0, 0.000000000001,occ)
+                   , occ = if_else(occ == 1, 0.999999999999,occ)
                   , det = map_dbl(modYear
                               , ~backTransform(.,type = "det")@estimate
                               )
@@ -179,21 +190,21 @@
   
   #--------Explore models-----------
   
-  taxaModsOcc <- dat %>%
-    dplyr::mutate(modOcc = fs::path(outDir,paste0("occupancy_",Taxa,".rds"))
-                  , dataOcc = fs::path(outDir,paste0("occupancyDf_",Taxa,".feather"))
+  taxaModsOC <- dat %>%
+    dplyr::mutate(mod = fs::path(outDir,paste0("occupancy_",Taxa,".rds"))
+                  , data = fs::path(outDir,paste0("occupancyDf_",Taxa,".feather"))
                   , exists = map_lgl(mod,file.exists)
                   ) %>%
     dplyr::filter(exists) %>%
-    dplyr::mutate(dataOcc = map(dataOcc,read_feather)
-                  , modOcc = map(modOcc,read_rds)
-                  ) %>%
-    dplyr::mutate(resOcc = pmap(list(Taxa
+    dplyr::mutate(data = map(data,read_feather)
+                  , mod = map(mod,read_rds)
+                  , type = "Occupancy"
+                  , res = pmap(list(Taxa
                                   , Common
-                                  , dataOcc
-                                  , modOcc
+                                  , data
+                                  , mod
+                                  , type
                                   , respVar = "occ"
-                                  , modType = "Occupancy"
                                   )
                              , mod_explore
                              )

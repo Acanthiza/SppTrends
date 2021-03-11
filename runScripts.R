@@ -4,7 +4,7 @@
   library(magrittr)
   
   runFrom <- 0
-  runTo <- 34
+  runTo <- 50
   excludes <- 0
   
   testing <- T
@@ -13,7 +13,7 @@
   
   getNewData <- FALSE
   
-  runReason <- paste0("Adjusted filter_taxa_data to accomodate varying time periods. Testing = ",testing,".")
+  runReason <- paste0("Rmd now iterates over taxGroup, taxa and 'models'. Testing = ",testing,".")
   
   dir() %>%
     grep("^\\d{4}_.*\\.R$",.,value=TRUE) %>%
