@@ -2,7 +2,7 @@
   library("timeR")
   timer <- createTimer()
   timer$start("setup")
-
+  
 #------Options-------
   
   # Reliability (distance) for accepting a patch
