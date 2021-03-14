@@ -158,7 +158,7 @@
                   )
    
   timer$stop("rr", comment = paste0("Reporting rate models run for "
-                                    ,nrow(taxaMods)
+                                    ,nrow(taxaModsRR)
                                     ," taxa, of which "
                                     ,nrow(todo)
                                     ," were new"

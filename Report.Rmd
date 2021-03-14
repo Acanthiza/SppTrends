@@ -57,7 +57,7 @@ Total records: `r format(nrow(taxaAll),big.mark = ",")` [@GBIFRef].
 
 Area of interest: `r aoiFullName`, defined by `r vec_to_sentence(aoiName)` IBRA Subregions.
 
-Total tidied records: `r format(nrow(dat),big.mark=",")`.
+Total tidied records: `r format(nrow(datTidy),big.mark=",")`.
 
 ```{r analysis}
 

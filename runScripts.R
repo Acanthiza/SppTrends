@@ -3,7 +3,7 @@
     
   library(magrittr)
   
-  runFrom <- 0
+  runFrom <- 32
   runTo <- 50
   excludes <- 0
   
@@ -13,7 +13,7 @@
   
   getNewData <- FALSE
   
-  runReason <- paste0("Rmd now iterates over taxGroup, taxa and 'models'. Testing = ",testing,".")
+  runReason <- paste0("Adjusted filter_taxa_data to cope with filtering data with no 'site' column. Testing = ",testing,".")
   
   dir() %>%
     grep("^\\d{4}_.*\\.R$",.,value=TRUE) %>%

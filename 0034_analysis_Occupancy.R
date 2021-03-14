@@ -211,7 +211,7 @@
                   )
   
   timer$stop("occ", comment = paste0("Occupancy models run for "
-                                     ,nrow(taxaMods)
+                                     ,nrow(taxaModsOC)
                                      ," taxa, of which "
                                      ,nrow(todo)
                                      ," were new"
