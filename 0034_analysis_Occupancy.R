@@ -97,13 +97,17 @@
                   , occ = map_dbl(modYear
                               , ~backTransform(.,type = "state")@estimate
                               )
-                   , occ = if_else(occ == 0, 0.000000000001,occ)
-                   , occ = if_else(occ == 1, 0.999999999999,occ)
+                   , occ = if_else(occ == 0, 0.0000000001,occ)
+                   , occ = if_else(occ == 1, 0.9999999999,occ)
                   , det = map_dbl(modYear
                               , ~backTransform(.,type = "det")@estimate
                               )
                   ) %>%
       dplyr::select(where(Negate(is.list))) %>%
+      dplyr::group_by(geo2) %>%
+      dplyr::mutate(years = n_distinct(year)) %>%
+      dplyr::ungroup() %>%
+      dplyr::filter(years > 3) %>%
       dplyr::mutate(across(where(is.character),factor))
     
     write_feather(datOcc,path(outDir,paste0("occupancyDf_",Taxa,".feather")))
