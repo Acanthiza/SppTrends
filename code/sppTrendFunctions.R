@@ -215,8 +215,8 @@
       dplyr::mutate(listLength = if(hasLL) median(df$listLength) else NULL
                     , listLengthLog = if(hasLL) log(listLength) else NULL
                     , col = row.names(.)
-                    , success = 0
-                    , trials = 100
+                    , success = if(isBinomialMod) 0 else NULL
+                    , trials = if(isBinomialMod) 100 else NULL
                     ) %>%
       dplyr::left_join(as_tibble(posterior_predict(mod
                                                    , newdata = .

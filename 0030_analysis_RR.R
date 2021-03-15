@@ -77,6 +77,8 @@
     
     geos <- length(unique(data$geo2))
     
+    cells <- length(unique(data$cell))
+    
     # GAM
     if(geos > 1) {
       
@@ -95,7 +97,7 @@
       
       mod <- stan_gamm4(cbind(success,trials-success) ~ s(year, k = 4, bs = "ts")
                             , data = data
-                            , random = ~ (1|cell)
+                            , random = if(cells > 1) formula(~ (1|cell)) else NULL
                             , family = binomial()
                             , chains = if(testing) testChains else useChains
                             , iter = if(testing) testIter else useIter

@@ -102,7 +102,7 @@
                           s(year, k = 4, by = listLengthLog, bs = "ts") +
                           listLengthLog
                         , data = data
-                        , random = ~ (1|cell)
+                        , random = if(cells > 1) formula(~ (1|cell)) else NULL
                         , family = binomial()
                         , chains = if(testing) testChains else useChains
                         , iter = if(testing) testIter else useIter
