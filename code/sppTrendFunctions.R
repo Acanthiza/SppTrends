@@ -789,7 +789,7 @@
     minYears <- find_min_years(df)
     minLengths <- find_min_list_lengths(df)
     minCells <- find_min_cells(df)
-    if("site" %in% names(df)) minSites <- find_min_sites(df) else 100
+    minSites <- if("site" %in% names(df)) find_min_sites(df) else 100
     minYearSpan <- find_min_year_span(df)
     
     while(minListLength < minListLengthThresh |
@@ -894,7 +894,7 @@
       minYears <- find_min_years(df)
       minLengths <- find_min_list_lengths(df)
       minCells <- find_min_cells(df)
-      if("site" %in% names(df)) minSites <- find_min_sites(df)
+      minSites <- if("site" %in% names(df)) find_min_sites(df) else 100
       minYearSpan <- find_min_year_span(df)
       
       res <- paste0("Minimum list length = ",minListLength
