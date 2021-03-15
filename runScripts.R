@@ -3,7 +3,7 @@
     
   library(magrittr)
   
-  runFrom <- 32
+  runFrom <- 0
   runTo <- 50
   excludes <- 0
   
@@ -13,7 +13,7 @@
   
   getNewData <- FALSE
   
-  runReason <- paste0("Adjusted filter_taxa_data to cope with filtering data with no 'site' column. Testing = ",testing,".")
+  runReason <- paste0("Slightly broader testing of RR, LL and OC. Testing = ",testing,".")
   
   dir() %>%
     grep("^\\d{4}_.*\\.R$",.,value=TRUE) %>%

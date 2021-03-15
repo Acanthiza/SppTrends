@@ -20,11 +20,11 @@ if(testing) {
               #, "Myiagra"
               #, "Pseudonaja"
               #, "Pogona"
-              #, "Vespadelus"
-              #, "Macropus"
-              #, "Pachycephala"
+              , "Vespadelus"
+              , "Macropus"
+              , "Pachycephala"
               #, "Phylidonyris"
-              #, "Climacteris"
+              , "Climacteris"
               )
   
   spp <- c(NULL
