@@ -13,7 +13,7 @@
   
   getNewData <- FALSE
   
-  runReason <- paste0("Slightly broader testing of RR, LL and OC. Tweaked filter_taxa_data. Testing = ",testing,".")
+  runReason <- paste0("Changed to stan_gamm4 with family = mgcv::betareg. Testing = ",testing,".")
   
   dir() %>%
     grep("^\\d{4}_.*\\.R$",.,value=TRUE) %>%

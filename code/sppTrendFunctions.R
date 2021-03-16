@@ -202,7 +202,7 @@
 
     #---------post explore-------
     
-    #if(family(mod)$family == "beta") class(mod) <- c(class(mod),"betareg")
+    if(family(mod)$family == "beta") class(mod) <- unique(c(class(mod),"betareg"))
     
     isBinomialMod <- family(mod)$family == "binomial"
 

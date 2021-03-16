@@ -63,13 +63,15 @@
   
   #------model function--------
   
-  occ <- function(Taxa,data,draws = 200, useGAM = FALSE) {
+  occ <- function(Taxa,data,draws = 200, useGAM = TRUE) {
     
     print(paste0(Taxa))
     
     outFile <- fs::path(outDir,paste0("occupancy_",Taxa,".rds"))
     
     geos <- length(unique(data$geo2))
+    
+    cells <- length(unique(data$cell))
     
     datOcc <- data %>%
       dplyr::distinct(year,geo2,cell,yday,site,success) %>%
@@ -97,8 +99,8 @@
                   , occ = map_dbl(modYear
                               , ~backTransform(.,type = "state")@estimate
                               )
-                   , occ = if_else(occ == 0, 0.0000000001,occ)
-                   , occ = if_else(occ == 1, 0.9999999999,occ)
+                    , occ = if_else(occ == 0, 0.00000001,occ)
+                    , occ = if_else(occ == 1, 0.99999999,occ)
                   , det = map_dbl(modYear
                               , ~backTransform(.,type = "det")@estimate
                               )
@@ -119,7 +121,8 @@
         
         mod <- stan_gamm4(occ ~ s(year, k = 4, bs = "ts") + geo2 + s(year, k = 4, by = geo2, bs = "ts")
                           , data = datOcc
-                          , family = binomial
+                          , family = mgcv::betar()
+                          , random = ~(1|cell)
                           , chains = if(testing) testChains else useChains
                           , iter = if(testing) testIter else useIter
                           )
@@ -128,7 +131,8 @@
         
         mod <- stan_gamm4(occ ~ s(year, k = 4)
                           , data = datOcc
-                          , family = binomial
+                          , family = mgcv::betar()
+                          , random = if(cells > 1) formula(~ (1|cell)) else NULL
                           , chains = if(testing) testChains else useChains
                           , iter = if(testing) testIter else useIter
                           )
@@ -179,7 +183,6 @@
                         , todo$data
                         )
                    , occ
-                   , useGAM = FALSE
                    )
       
     } else {
@@ -208,9 +211,9 @@
                                   , data
                                   , mod
                                   , type
-                                  , respVar = "occ"
                                   )
                              , mod_explore
+                             , respVar = "occ"
                              )
                   )
   

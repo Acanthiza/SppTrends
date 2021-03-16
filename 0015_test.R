@@ -16,14 +16,14 @@ if(testing) {
               , "Melithreptus"
               , "Pandion"
               , "Haliaeetus"
-              #, "Cacatua"
+              , "Cacatua"
               #, "Myiagra"
               #, "Pseudonaja"
               #, "Pogona"
               , "Vespadelus"
               , "Macropus"
               , "Pachycephala"
-              #, "Phylidonyris"
+              , "Phylidonyris"
               , "Climacteris"
               )
   
