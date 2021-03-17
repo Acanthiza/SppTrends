@@ -1,5 +1,5 @@
 
-  outName <- "2021-03-15-1829_the agricultural zone of South Australia"
+  outName <- "new"
     
   library(magrittr)
   
@@ -13,7 +13,7 @@
   
   getNewData <- FALSE
   
-  runReason <- paste0("Changed to stan_gamm4 with family = mgcv::betareg. Testing = ",testing,".")
+  runReason <- paste0("Simplified 'filter_taxa_data'. Testing = ",testing,".")
   
   dir() %>%
     grep("^\\d{4}_.*\\.R$",.,value=TRUE) %>%

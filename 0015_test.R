@@ -16,15 +16,15 @@ if(testing) {
               , "Melithreptus"
               , "Pandion"
               , "Haliaeetus"
-              , "Cacatua"
+              #, "Cacatua"
               #, "Myiagra"
               #, "Pseudonaja"
               #, "Pogona"
               , "Vespadelus"
               , "Macropus"
-              , "Pachycephala"
-              , "Phylidonyris"
-              , "Climacteris"
+              #, "Pachycephala"
+              #, "Phylidonyris"
+              #, "Climacteris"
               )
   
   spp <- c(NULL
