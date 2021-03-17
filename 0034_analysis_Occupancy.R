@@ -21,27 +21,10 @@
                      , minlistOccurenceThresh = 0
                      , minYearsThresh = 3
                      , minListLengthsThresh = 0
-                     , minCellsThresh = 3
-                     , minSitesThresh = 3
-                     , minYearSpanThresh = 10
-                     #, allQuartVisits = TRUE
-                     , timeVars = c("year","yday")
                      )
   
   
   #-------Data prep---------
-  
-  # data_pivot_fill_zero <- function(df) {
-  #   
-  #   df %>%
-  #     tidyr::pivot_wider(names_from = c("Taxa","yday"), values_from = "success",values_fill = 0) %>%
-  #     tidyr::pivot_longer(cols = contains(unique(taxaGeo$Taxa))
-  #                         , names_to = c("Taxa","yday")
-  #                         , names_sep = "_"
-  #                         , values_to = "success"
-  #                         )
-  #   
-  # }
   
   siteYearVisit <- datFiltered %>%
     dplyr::distinct(across(any_of(taxGroup)),geo1,geo2,cell,site,year,yday,list,listLength)
@@ -73,7 +56,7 @@
     
     cells <- length(unique(data$cell))
     
-    datOcc <- data %>%
+    datOccPrep <- data %>%
       dplyr::distinct(year,geo2,cell,yday,site,success) %>%
       tidyr::nest(data = -c(year,geo2,cell)) %>%
       dplyr::mutate(data = map(data, . %>%
@@ -85,85 +68,94 @@
                     , trials = map_dbl(data,nrow)
                     ) %>%
       dplyr::filter(trials > 2) %>%
-      
-      #dplyr::sample_n(2) %>% # TESTING
-      
-      dplyr::mutate(umf = map(data
-                              , function(x) unmarkedFrameOccu(y = x %>% dplyr::select(-1))
-                              )
-                  , modYear = map(umf
-                              , function(x) unmarked::occu(~1 ~1
-                                                           , data = x
-                                                           )
-                              )
-                  , occ = map_dbl(modYear
-                              , ~backTransform(.,type = "state")@estimate
-                              )
-                    , occ = if_else(occ == 0, 0.00000001,occ)
-                    , occ = if_else(occ == 1, 0.99999999,occ)
-                  , det = map_dbl(modYear
-                              , ~backTransform(.,type = "det")@estimate
-                              )
-                  ) %>%
-      dplyr::select(where(Negate(is.list))) %>%
       dplyr::group_by(geo2) %>%
       dplyr::mutate(years = n_distinct(year)) %>%
-      dplyr::ungroup() %>%
-      dplyr::filter(years > 3) %>%
-      dplyr::mutate(across(where(is.character),factor))
+      dplyr::filter(years > 3)
     
-    write_feather(datOcc,path(outDir,paste0("occupancyDf_",Taxa,".feather")))
-    
-    # GAM
-    if(useGAM) {
+    if(nrow(datOccPrep) > 3) {
       
-      if(geos > 1) {
-        
-        mod <- stan_gamm4(occ ~ s(year, k = 4, bs = "ts") + geo2 + s(year, k = 4, by = geo2, bs = "ts")
-                          , data = datOcc
-                          , family = mgcv::betar()
-                          , random = ~(1|cell)
-                          , chains = if(testing) testChains else useChains
-                          , iter = if(testing) testIter else useIter
-                          )
-        
-      } else {
-        
-        mod <- stan_gamm4(occ ~ s(year, k = 4)
-                          , data = datOcc
-                          , family = mgcv::betar()
-                          , random = if(cells > 1) formula(~ (1|cell)) else NULL
-                          , chains = if(testing) testChains else useChains
-                          , iter = if(testing) testIter else useIter
-                          )
-        
-      }
+      datOcc <- datOccPrep %>%
+        dplyr::mutate(umf = map(data
+                                , function(x) unmarkedFrameOccu(y = x %>% dplyr::select(-1))
+                                )
+                    , modYear = map(umf
+                                , function(x) unmarked::occu(~1 ~1
+                                                             , data = x
+                                                             )
+                                )
+                    , occ = map_dbl(modYear
+                                , ~backTransform(.,type = "state")@estimate
+                                )
+                      , occ = if_else(occ == 0, 0.00000001,occ)
+                      , occ = if_else(occ == 1, 0.99999999,occ)
+                    , det = map_dbl(modYear
+                                , ~backTransform(.,type = "det")@estimate
+                                )
+                    ) %>%
+        dplyr::select(where(Negate(is.list))) %>%
+        dplyr::group_by(geo2) %>%
+        dplyr::mutate(years = n_distinct(year)) %>%
+        dplyr::ungroup() %>%
+        dplyr::filter(years > 3) %>%
+        dplyr::mutate(across(where(is.character),factor))
       
-    } else {
+        write_feather(datOcc,path(outDir,paste0("occupancyDf_",Taxa,".feather")))
+        
+      geos <- length(unique(datOcc$geo2))
+      randCell <- length(unique(datOcc$cell)) > 1 & min(table(datOcc$cell)) > 1
       
-      # GLM
-      if(geos > 1) {
-
-        mod <- stan_betareg(occ ~ year*geo2
+        # GAM
+      if(useGAM) {
+        
+        if(geos > 1) {
+          
+          mod <- stan_gamm4(occ ~ s(year, k = 4, bs = "ts") + geo2 + s(year, k = 4, by = geo2, bs = "ts")
                             , data = datOcc
+                            , family = mgcv::betar()
+                            , random = if(randCell) formula(~ (1|cell)) else NULL
                             , chains = if(testing) testChains else useChains
                             , iter = if(testing) testIter else useIter
                             )
-
-      } else {
-
-        mod <- stan_betareg(occ ~ year
+          
+        } else {
+          
+          mod <- stan_gamm4(occ ~ s(year, k = 4)
                             , data = datOcc
+                            , family = mgcv::betar()
+                            , random = if(randCell) formula(~ (1|cell)) else NULL
                             , chains = if(testing) testChains else useChains
                             , iter = if(testing) testIter else useIter
                             )
-
+          
+        }
+        
+      } else {
+        
+        # GLM
+        if(geos > 1) {
+  
+          mod <- stan_betareg(occ ~ year*geo2
+                              , data = datOcc
+                              , chains = if(testing) testChains else useChains
+                              , iter = if(testing) testIter else useIter
+                              )
+  
+        } else {
+  
+          mod <- stan_betareg(occ ~ year
+                              , data = datOcc
+                              , chains = if(testing) testChains else useChains
+                              , iter = if(testing) testIter else useIter
+                              )
+          
+          }
+        
+        
       }
       
+      write_rds(mod,outFile)
       
-    }
-    
-    write_rds(mod,outFile)
+      }
     
   }
   

@@ -689,10 +689,7 @@
                                , minlistOccurenceThresh = 5
                                , minYearsThresh = 3
                                , minListLengthsThresh = 2
-                               , minCellsThresh = 0
-                               , minSitesThresh = 0
-                               , minYearSpanThresh = 10
-                               , timeVars = c("year")
+                               , minYearSpanThresh = 20
                                ) {
     
     find_min_list_length <- function(df) {
@@ -746,32 +743,10 @@
       
     }
     
-    find_min_cells <- function(df) {
-      
-      df %>%
-        dplyr::distinct(across(any_of(timeVars)),Taxa,geo2,cell) %>%
-        dplyr::count(year,geo2,Taxa, name = "cells") %>%
-        dplyr::filter(cells == min(cells)) %>%
-        dplyr::distinct(cells) %>%
-        dplyr::pull(cells)
-      
-    }
-    
-    find_min_sites <- function(df) {
-      
-      df %>%
-        dplyr::distinct(across(any_of(timeVars)),Taxa,geo2,cell,site) %>%
-        dplyr::count(year,geo2,Taxa,cell, name = "sites") %>%
-        dplyr::filter(sites == min(sites)) %>%
-        dplyr::distinct(sites) %>%
-        dplyr::pull(sites)
-      
-    }
-    
     find_min_year_span <-function(df) {
       
       df %>%
-        dplyr::group_by(!!ensym(taxGroup),Taxa,across(any_of(analysisScales))) %>%
+        dplyr::group_by(!!ensym(taxGroup),geo2,Taxa) %>%
         dplyr::summarise(minYear = min(year)
                       , maxYear = max(year)
                       , diffYear = maxYear - minYear
@@ -788,8 +763,6 @@
     minlistOccurence <- find_min_list_occurence(df)
     minYears <- find_min_years(df)
     minLengths <- find_min_list_lengths(df)
-    minCells <- find_min_cells(df)
-    minSites <- if("site" %in% names(df)) find_min_sites(df) else 100
     minYearSpan <- find_min_year_span(df)
     
     while(minListLength < minListLengthThresh |
@@ -797,8 +770,6 @@
           minlistOccurence < minlistOccurenceThresh |
           minYears < minYearsThresh |
           minLengths < minListLengthsThresh |
-          minCells < minCellsThresh |
-          minSites < minSitesThresh |
           minYearSpan < minYearSpanThresh
     ) {
       
@@ -836,46 +807,19 @@
         dplyr::filter(lengths < minListLengthsThresh) %>%
         dplyr::distinct(geo2,Taxa)
       
-      removeTooFewCells <- df %>%
-        dplyr::anti_join(removeTaxaOnShortLists) %>%
-        dplyr::anti_join(removeTaxaWithFewOccurrences) %>%
-        dplyr::anti_join(removeTaxaWithFewYears) %>%
-        dplyr::anti_join(removeTaxaWithFewLengths) %>%
-        dplyr::distinct(across(any_of(timeVars)),Taxa,geo2,cell) %>%
-        dplyr::count(year,geo2,Taxa, name = "cells") %>%
-        dplyr::filter(cells < minCellsThresh) %>%
-        dplyr::distinct(year,geo2,Taxa)
-     
-      if("site" %in% names(df)) {
-        
-        removeTooFewSites <- df %>%
-          dplyr::anti_join(removeTaxaOnShortLists) %>%
-          dplyr::anti_join(removeTaxaWithFewOccurrences) %>%
-          dplyr::anti_join(removeTaxaWithFewYears) %>%
-          dplyr::anti_join(removeTaxaWithFewLengths) %>%
-          dplyr::anti_join((removeTooFewCells)) %>%
-          dplyr::distinct(across(any_of(timeVars)),Taxa,geo2,cell,site) %>%
-          dplyr::count(year,geo2,Taxa,cell, name = "sites") %>%
-          dplyr::filter(sites < minSitesThresh) %>%
-          dplyr::distinct(year,geo2,Taxa,cell)
-        
-      }
-      
       removeTooFewYears <- df %>%
         dplyr::anti_join(removeTaxaOnShortLists) %>%
         dplyr::anti_join(removeTaxaWithFewOccurrences) %>%
         dplyr::anti_join(removeTaxaWithFewYears) %>%
         dplyr::anti_join(removeTaxaWithFewLengths) %>%
-        dplyr::anti_join(removeTooFewCells) %>%
-        {if("site" %in% names(df)) (.) %>% dplyr::anti_join(removeTooFewSites) else (.)} %>%
-        dplyr::group_by(!!ensym(taxGroup),Taxa,across(any_of(analysisScales))) %>%
+        dplyr::group_by(!!ensym(taxGroup),geo2,Taxa) %>%
         dplyr::summarise(minYear = min(year)
                          , maxYear = max(year)
                          , diffYear = maxYear - minYear
                          ) %>%
         dplyr::ungroup() %>%
         dplyr::filter(diffYear < minYearSpanThresh) %>%
-        dplyr::distinct(!!ensym(taxGroup),Taxa,across(any_of(analysisScales)))
+        dplyr::distinct(!!ensym(taxGroup),Taxa,geo2)
         
       
       df <- df %>%
@@ -883,8 +827,6 @@
         dplyr::anti_join(removeTaxaWithFewOccurrences) %>%
         dplyr::anti_join(removeTaxaWithFewYears) %>%
         dplyr::anti_join(removeTaxaWithFewLengths) %>%
-        dplyr::anti_join(removeTooFewCells) %>%
-        {if("site" %in% names(df)) (.) %>% dplyr::anti_join(removeTooFewSites) else (.)} %>%
         dplyr::anti_join(removeTooFewYears) %>%
         dplyr::add_count(list, name = "listLength")
       
@@ -893,8 +835,6 @@
       minlistOccurence <- find_min_list_occurence(df)
       minYears <- find_min_years(df)
       minLengths <- find_min_list_lengths(df)
-      minCells <- find_min_cells(df)
-      minSites <- if("site" %in% names(df)) find_min_sites(df) else 100
       minYearSpan <- find_min_year_span(df)
       
       res <- paste0("Minimum list length = ",minListLength
@@ -902,8 +842,6 @@
                     ,"\nMinimum list occurence = ",minlistOccurence
                     ,"\nMinimum years = ",minYears
                     ,"\nMinimum list lengths = ",minLengths
-                    ,"\nMinimum cells per Taxa, Geo2, Year = ",minCells
-                    ,if("site" %in% names(df)) paste0("\nMinimum sites per Taxa, Geo2, Year, Cell = ",minSites)
                     ,"\nMinimum year span = ",minYearSpan
                     ,"\nTotal records = ",nrow(df)
                     ,"\n"
