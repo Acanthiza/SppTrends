@@ -62,6 +62,8 @@
     
     geos <- length(unique(data$geo2))
     
+    randCell <- length(unique(data$cell)) > 1 & max(table(factor(data$cell))) > 1
+    
     # GAM
     if(geos > 1) {
       
@@ -73,7 +75,7 @@
                           geo2*listLengthLog
                         , data = data
                         , family = binomial()
-                        , random = ~(1|cell)
+                        , random = if(randCell) formula(~ (1|cell)) else NULL
                         , chains = if(testing) testChains else useChains
                         , iter = if(testing) testIter else useIter
                         )
@@ -84,7 +86,7 @@
                           s(year, k = 4, by = listLengthLog, bs = "ts") +
                           listLengthLog
                         , data = data
-                        , random = if(cells > 1) formula(~ (1|cell)) else NULL
+                        , random = if(randCell) formula(~ (1|cell)) else NULL
                         , family = binomial()
                         , chains = if(testing) testChains else useChains
                         , iter = if(testing) testIter else useIter

@@ -12,9 +12,34 @@
   polyBuffer <- 0
   
   # What is the area of interest (AOI) for this analysis?
-  aoiName <- c("FLB","KAN","EYB","MDD","NCP","SVP")
-  aoiFullName <- "the agricultural zone of South Australia"
-  Statewide <- F
+  aoiName <- "SA"
+  aoiFullName <- "South Australia"
+  Statewide <- T
+  
+  # Which polygons define the AOI?
+  polyMask <- c(NULL
+                , "Simpson Strzelecki Dunefields"
+                , "Stony Plains"
+                , "Naracoorte Coastal Plain"
+                , "Nullarbor"
+                , "Southern Volcanic Plain"
+                , "Riverina"
+                , "Central Ranges"
+                , "Murray Darling Depression"
+                , "Flinders Lofty Block"
+                , "Hampton"
+                , "Kanmantoo"
+                , "Channel Country"
+                , "Great Victoria Desert"
+                , "Broken Hill Complex"
+                , "Finke"
+                , "Eyre Yorke Block"
+                , "Gawler"
+                )
+  
+  # Geo context
+  geo1 <- "IBRA_REG_N"
+  geo2 <- "IBRA_SUB_N"
   
   # Taxonomic grouping
   taxGroup <- "Order"

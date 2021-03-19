@@ -6,25 +6,25 @@ if(testing) {
   # These are only used when testing = TRUE
   
   orders <- c(NULL
-              #, "Anseriformes"
-              #, "Charadriiformes"
-              #, "Accipitriformes"
-              #, "Diprotodontia"
+              , "Anseriformes"
+              , "Charadriiformes"
+              , "Accipitriformes"
+              , "Diprotodontia"
               )
   
   genera <- c(NULL
               , "Melithreptus"
               , "Pandion"
               , "Haliaeetus"
-              #, "Cacatua"
-              #, "Myiagra"
-              #, "Pseudonaja"
-              #, "Pogona"
+              , "Cacatua"
+              , "Myiagra"
+              , "Pseudonaja"
+              , "Pogona"
               , "Vespadelus"
               , "Macropus"
-              #, "Pachycephala"
-              #, "Phylidonyris"
-              #, "Climacteris"
+              , "Pachycephala"
+              , "Phylidonyris"
+              , "Climacteris"
               )
   
   spp <- c(NULL

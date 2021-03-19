@@ -13,7 +13,7 @@
   
   getNewData <- FALSE
   
-  runReason <- paste0("Simplified 'filter_taxa_data'. Testing = ",testing,".")
+  runReason <- paste0("AOI now generated from polys directly. Full state attempt. Testing = ",testing,".")
   
   dir() %>%
     grep("^\\d{4}_.*\\.R$",.,value=TRUE) %>%

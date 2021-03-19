@@ -17,8 +17,8 @@
     st_transform(crs = st_crs(polys))
   
   aoi <- make_aoi(polys
-                  ,filterPolys = aoiName
-                  ,filterPolysCol = "IBRA_REG_C"
+                  ,filterPolys = polyMask
+                  ,filterPolysCol = "IBRA_REG_N"
                   ,polyBuffer = polyBuffer
                   )
   
