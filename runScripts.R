@@ -9,11 +9,11 @@
   
   testing <- T
   testRmd <- F
-  commitToGit <- T
+  commitToGit <- F
   
   getNewData <- FALSE
   
-  runReason <- paste0("AOI now generated from polys directly. Full state attempt. Testing = ",testing,".")
+  runReason <- paste0("KI run. Testing = ",testing,".")
   
   dir() %>%
     grep("^\\d{4}_.*\\.R$",.,value=TRUE) %>%

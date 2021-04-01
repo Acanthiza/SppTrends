@@ -58,7 +58,7 @@
     
     print(Taxa)
     
-    outFile <- fs::path(outDir,paste0("list-length_",Taxa,".rds"))
+    outFile <- fs::path(outDir,paste0("list-length_Mod_",Taxa,".rds"))
     
     geos <- length(unique(data$geo2))
     
@@ -102,7 +102,7 @@
   #------Run models-------
  
   todo <- dat %>%
-    dplyr::mutate(outFile = fs::path(outDir,paste0("list-length_",Taxa,".rds"))
+    dplyr::mutate(outFile = fs::path(outDir,paste0("list-length_Mod_",Taxa,".rds"))
                   , done = map_lgl(outFile,file.exists)
                   ) %>%
     dplyr::filter(!done)
@@ -129,24 +129,24 @@
   
   #--------Explore models-----------
   taxaModsLL <- dat %>%
-    dplyr::mutate(mod = fs::path(outDir,paste0("list-length_",Taxa,".rds"))
-                  , exists = map_lgl(mod,file.exists)
-                  ) %>%
-    dplyr::filter(exists) %>%
-    dplyr::mutate(mod = map(mod,read_rds)
-                  , type = "List length"
-                  , res = pmap(list(Taxa
-                                  , Common
-                                  , data
-                                  , mod
-                                  , type
-                                  )
-                             , mod_explore
-                             )
-                  )
+    dplyr::mutate(modPath = fs::path(outDir,paste0("list-length_Mod_",Taxa,".rds"))) %>%
+    dplyr::filter(file.exists(modPath)) %>%
+    dplyr::mutate(type = "List length")
+  
+  doof <- taxaModsLL
+  
+  future_pwalk(list(doof$Taxa
+                    , doof$Common
+                    , doof$data
+                    , doof$modPath
+                    , doof$type
+                    )
+               , mod_explore
+               , respVar = "prop"
+               )
   
   
-  timer$stop("ll", comment = paste0("Reporting rate models run for "
+  timer$stop("ll", comment = paste0("List length models run for "
                                     ,nrow(taxaModsLL)
                                     ," taxa, of which "
                                     ,nrow(todo)

@@ -9,32 +9,36 @@
   setDist <- 1000
   
   # Buffer around polyMask in METRES
-  polyBuffer <- 0
+  polyBuf <- 1000
   
   # What is the area of interest (AOI) for this analysis?
-  aoiName <- "SA"
-  aoiFullName <- "South Australia"
-  Statewide <- T
+  aoiName <- "KI"
+  aoiFullName <- "Kangaroo Island"
+  Statewide <- F
   
   # Which polygons define the AOI?
+  # polyMask <- c(NULL
+  #               , "Simpson Strzelecki Dunefields"
+  #               , "Stony Plains"
+  #               , "Naracoorte Coastal Plain"
+  #               , "Nullarbor"
+  #               , "Southern Volcanic Plain"
+  #               , "Riverina"
+  #               , "Central Ranges"
+  #               , "Murray Darling Depression"
+  #               , "Flinders Lofty Block"
+  #               , "Hampton"
+  #               , "Kanmantoo"
+  #               , "Channel Country"
+  #               , "Great Victoria Desert"
+  #               , "Broken Hill Complex"
+  #               , "Finke"
+  #               , "Eyre Yorke Block"
+  #               , "Gawler"
+  #               )
+  
   polyMask <- c(NULL
-                , "Simpson Strzelecki Dunefields"
-                , "Stony Plains"
-                , "Naracoorte Coastal Plain"
-                , "Nullarbor"
-                , "Southern Volcanic Plain"
-                , "Riverina"
-                , "Central Ranges"
-                , "Murray Darling Depression"
-                , "Flinders Lofty Block"
-                , "Hampton"
-                , "Kanmantoo"
-                , "Channel Country"
-                , "Great Victoria Desert"
-                , "Broken Hill Complex"
-                , "Finke"
-                , "Eyre Yorke Block"
-                , "Gawler"
+                , "Kangaroo Island"
                 )
   
   # Geo context
@@ -242,18 +246,18 @@
     st_transform(crs = 3577)
   
   # Polygons
-  # polys <- st_read("shp/LSA.shp"
-  #                  , quiet = TRUE
-  #                  ) %>%
-  #   as_tibble() %>%
-  #   dplyr::mutate(across(where(is.character),~gsub("Wilur|Wilu\\?",paste0("Wilu","\u1E5F"),.))) %>%
-  #   dplyr::left_join(luPolys) %>%
-  #   st_as_sf() %>%
-  #   st_transform(crs = 3577)
-  # 
-  # polyPalette <- luPolys %>%
-  #   dplyr::mutate(colour = rgb(R,G,B,A,maxColorValue = 255)) %>%
-  #   dplyr::pull(colour, name = "REGION")
+  LSA <- st_read("shp/LSA.shp"
+                   , quiet = TRUE
+                   ) %>%
+    as_tibble() %>%
+    dplyr::mutate(across(where(is.character),~gsub("Wilur|Wilu\\?",paste0("Wilu","\u1E5F"),.))) %>%
+    dplyr::left_join(luPolys) %>%
+    st_as_sf() %>%
+    st_transform(crs = 3577)
+
+  polyPalette <- luPolys %>%
+    dplyr::mutate(colour = rgb(R,G,B,A,maxColorValue = 255)) %>%
+    dplyr::pull(colour, name = "REGION")
   
   # IBRA Sub
   ibraSub <- st_read("shp/LANDSCAPE_IbraSubregionAust70.shp") %>%
@@ -264,7 +268,8 @@
     dplyr::distinct(IBRA_SUB_N,IBRA_SUB_C,IBRA_SUB_1,IBRA_REG_N,IBRA_REG_C,IBRA_REG_1)
     
 
-  polys <- ibraSub
+  polys <- LSA
+  polysCol <- "REGION"
 
 #---------Parallel-----------
   

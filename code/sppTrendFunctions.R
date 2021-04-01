@@ -2,7 +2,7 @@
   mod_explore <- function(Taxa
                           , Common
                           , df
-                          , mod
+                          , modPath
                           , modType
                           , respVar = "prop"
                           , expVar = c(analysisScales,"year")
@@ -17,6 +17,15 @@
                           ) {
     
     print(Taxa)
+    
+    #-------import/export--------
+    mod <- read_rds(modPath)
+    
+    outPred <- path(outDir,paste0(gsub(" ","-",tolower(modType)),"_Pred_",Taxa,".feather"))
+    
+    outRes <- path(outDir,paste0(gsub(" ","-",tolower(modType)),"_Res_",Taxa,".rds"))
+    
+    outYearDiff <- path(outDir,paste0(gsub(" ","-",tolower(modType)),"_YearDif_",Taxa,".feather"))
     
     #-------setup explore-------
     
@@ -206,7 +215,7 @@
     
     isBinomialMod <- family(mod)$family == "binomial"
 
-    res$pred <- df %>%
+    pred <- df %>%
       dplyr::distinct(geo2) %>%
       dplyr::left_join(df %>%
                          dplyr::distinct(year)
@@ -230,8 +239,10 @@
       dplyr::mutate(rawValue = as.numeric(value)
                     , value = if(isBinomialMod) rawValue/trials else rawValue
                     )
+    
+    write_feather(pred,outPred)
 
-    res$res <- res$pred %>%
+    res$res <- pred %>%
       dplyr::group_by(across(any_of(postGroups))) %>%
       dplyr::summarise(n = n()
                        , nCheck = nrow(as_tibble(mod))
@@ -408,6 +419,8 @@
                          ) %>%
       setNames(gsub("\\d{4}","",names(.))) %>%
       dplyr::mutate(diff = as.numeric(value_recent-value_reference))
+    
+    write_feather(res$yearDifferenceDf,outYearDiff)
 
 
     #-------year difference res---------
@@ -483,7 +496,7 @@
            )
     
     
-    return(res)
+    write_rds(res,outRes)
     
   }
   

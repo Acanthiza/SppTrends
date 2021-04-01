@@ -16,10 +16,10 @@
     st_as_sf(coords = c("LONGITUDE","LATITUDE"), crs = 4326, remove = FALSE) %>%
     st_transform(crs = st_crs(polys))
   
-  aoi <- make_aoi(polys
+  aoi <- make_aoi(polygons = polys
                   ,filterPolys = polyMask
-                  ,filterPolysCol = "IBRA_REG_N"
-                  ,polyBuffer = polyBuffer
+                  ,filterPolysCol = "REGION"
+                  ,polyBuffer = polyBuf
                   )
   
   sitesAOI <- sitesAll %>%

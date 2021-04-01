@@ -1,3 +1,18 @@
+
+
+# Convert deg°min'sec to decimal degrees
+  deg_min_sec_to_dec_deg <- function(df,col,sep = "\u00B0|'", into = c("lat","long")) {
+    
+    dfNames <- names(df)
+    
+    df %>%
+      tidyr::separate(!!ensym(col), into = c("deg","min","sec"), sep = paste0(sep)) %>%
+      dplyr::mutate(sec = parse_number(sec)) %>%
+      dplyr::mutate(across(all_of(c("deg","min","sec")),as.numeric)) %>%
+      dplyr::mutate(!!ensym(into) := deg + min/60 + sec/60^2) %>%
+      dplyr::select(all_of(dfNames),!!ensym(into))
+    
+  }
   
 # get a bib entry from a DOI
   get_bib <- function(DOI,outFile = NULL){
@@ -139,7 +154,7 @@
       dplyr::count(!!ensym(col)) %>%
       dplyr::filter(n > 1)
     
-    print(paste0("there are ",nrow(notUnique)," ",col,"(s) that are not unique: ",dplyr::pull(notUnique[,1])))
+    print(paste0("there are ",nrow(notUnique)," ",col,"(s) that are not unique: ",vec_to_sentence(notUnique[,1])))
     
   }
 
@@ -231,15 +246,15 @@ unscale_data <- function(scaledData) {
 # A function to run random forest over a df with first column 'cluster' and other columns explanatory
 
   rf_mod_fold <- function(envClust
-                     , clustCol = "cluster"
-                     , envCols = names(patchesEnvSelect)[-1]
-                     , idCol = "SiteID"
-                     , doFolds = folds
-                     , outFile
-                     , saveModel = FALSE
-                     , saveImp = FALSE
-                     , ...
-                     ){
+                          , clustCol = "cluster"
+                          , envCols = names(patchesEnvSelect)[-1]
+                          , idCol = "cell"
+                          , doFolds = folds
+                          , outFile
+                          , saveModel = FALSE
+                          , saveImp = FALSE
+                          , ...
+                          ){
     
     idCol <- if(is.numeric(idCol)) names(envClust)[idCol] else idCol
     

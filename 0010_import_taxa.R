@@ -111,7 +111,11 @@
                   )
   
   luTax <- luGBIF %>%
-    dplyr::distinct(Taxa,Common,Kingdom,Phylum,Class,Order,Family,Genus)
+    dplyr::distinct(Taxa,Kingdom,Phylum,Class,Order,Family,Genus) %>%
+    dplyr::left_join(luGBIF %>%
+                       dplyr::distinct(Taxa,Common) %>%
+                       dplyr::filter(!is.na(Common))
+                     )
   
   luInd <- taxaBDBSA %>%
     dplyr::left_join(luGBIF, by = c("SPECIES" = "id")) %>%

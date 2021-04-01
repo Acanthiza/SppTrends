@@ -50,7 +50,7 @@
     
     print(paste0(Taxa))
     
-    outFile <- fs::path(outDir,paste0("occupancy_",Taxa,".rds"))
+    outFile <- fs::path(outDir,paste0("occupancy_Mod_",Taxa,".rds"))
     
     geos <- length(unique(data$geo2))
     
@@ -162,7 +162,7 @@
   #------Run models-------
   
   todo <- dat %>%
-    dplyr::mutate(outFile = fs::path(outDir,paste0("occupancy_",Taxa,".rds"))
+    dplyr::mutate(outFile = fs::path(outDir,paste0("occupancy_Mod_",Taxa,".rds"))
                   , done = map_lgl(outFile,file.exists)
                   ) %>%
     dplyr::filter(!done)
@@ -189,25 +189,34 @@
   
   #--------Explore models-----------
   
+  read_rds_file <- function(path) {
+    
+    print(path)
+    
+    read_rds(path)
+    
+  }
+  
   taxaModsOC <- dat %>%
-    dplyr::mutate(mod = fs::path(outDir,paste0("occupancy_",Taxa,".rds"))
-                  , data = fs::path(outDir,paste0("occupancyDf_",Taxa,".feather"))
-                  , exists = map_lgl(mod,file.exists)
+    dplyr::mutate(data = fs::path(outDir,paste0("occupancyDf_",Taxa,".feather"))
+                  , modPath = fs::path(outDir,paste0("occupancy_Mod_",Taxa,".rds"))
                   ) %>%
-    dplyr::filter(exists) %>%
+    dplyr::filter(file.exists(modPath)) %>%
     dplyr::mutate(data = map(data,read_feather)
-                  , mod = map(mod,read_rds)
                   , type = "Occupancy"
-                  , res = pmap(list(Taxa
-                                  , Common
-                                  , data
-                                  , mod
-                                  , type
-                                  )
-                             , mod_explore
-                             , respVar = "occ"
-                             )
                   )
+  
+  doof <- taxaModsOC
+  
+  future_pwalk(list(doof$Taxa
+                    , doof$Common
+                    , doof$data
+                    , doof$modPath
+                    , doof$type
+                    )
+               , mod_explore
+               , respVar = "occ"
+               )
   
   timer$stop("occ", comment = paste0("Occupancy models run for "
                                      ,nrow(taxaModsOC)
