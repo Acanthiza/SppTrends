@@ -18,7 +18,7 @@
   
   aoi <- make_aoi(polygons = polys
                   ,filterPolys = polyMask
-                  ,filterPolysCol = "REGION"
+                  ,filterPolysCol = "IBRA_REG_N"
                   ,polyBuffer = polyBuf
                   )
   
