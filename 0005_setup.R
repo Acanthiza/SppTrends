@@ -17,29 +17,29 @@
   Statewide <- F
   
   # Which polygons define the AOI?
-  # polyMask <- c(NULL
-  #               , "Simpson Strzelecki Dunefields"
-  #               , "Stony Plains"
-  #               , "Naracoorte Coastal Plain"
-  #               , "Nullarbor"
-  #               , "Southern Volcanic Plain"
-  #               , "Riverina"
-  #               , "Central Ranges"
-  #               , "Murray Darling Depression"
-  #               , "Flinders Lofty Block"
-  #               , "Hampton"
-  #               , "Kanmantoo"
-  #               , "Channel Country"
-  #               , "Great Victoria Desert"
-  #               , "Broken Hill Complex"
-  #               , "Finke"
-  #               , "Eyre Yorke Block"
-  #               , "Gawler"
-  #               )
-  
   polyMask <- c(NULL
-                , "Kangaroo Island"
+                , "Simpson Strzelecki Dunefields"
+                , "Stony Plains"
+                , "Naracoorte Coastal Plain"
+                , "Nullarbor"
+                , "Southern Volcanic Plain"
+                , "Riverina"
+                , "Central Ranges"
+                , "Murray Darling Depression"
+                , "Flinders Lofty Block"
+                , "Hampton"
+                , "Kanmantoo"
+                , "Channel Country"
+                , "Great Victoria Desert"
+                , "Broken Hill Complex"
+                , "Finke"
+                , "Eyre Yorke Block"
+                , "Gawler"
                 )
+  
+  # polyMask <- c(NULL
+  #               , "Kangaroo Island"
+  #               )
   
   # Geo context
   geo1 <- "IBRA_REG_N"
@@ -268,8 +268,8 @@
     dplyr::distinct(IBRA_SUB_N,IBRA_SUB_C,IBRA_SUB_1,IBRA_REG_N,IBRA_REG_C,IBRA_REG_1)
     
 
-  polys <- LSA
-  polysCol <- "REGION"
+  polys <- ibraSub
+  
 
 #---------Parallel-----------
   

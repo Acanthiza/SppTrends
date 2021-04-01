@@ -9,11 +9,11 @@
   
   testing <- T
   testRmd <- F
-  commitToGit <- F
+  commitToGit <- T
   
   getNewData <- FALSE
   
-  runReason <- paste0("KI run. Testing = ",testing,".")
+  runReason <- paste0("Another attempt at full state run. Testing = ",testing,".")
   
   dir() %>%
     grep("^\\d{4}_.*\\.R$",.,value=TRUE) %>%

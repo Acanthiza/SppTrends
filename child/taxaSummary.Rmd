@@ -50,3 +50,15 @@
   taxaDat$overall[[1]]$yearDiffOverallPlot
 
 ```
+
+```{r addToSummary{{thisTaxa}}}
+
+  taxaSummary <- tibble(Taxa = taxaDat$Taxa
+                        , Common = taxaDat$Common
+                        , overall = taxaDat$overall[[1]]$yearDiffOverallRes$text
+                        )
+
+  taxaModsSummary <- taxaModsSummary %>%
+    dplyr::bind_rows(taxaSummary)
+
+```

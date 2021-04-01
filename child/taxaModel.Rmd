@@ -3,7 +3,10 @@
   useMod <- "{{thisMod}}"
   
   thisMod <- thisTaxaMods %>%
-    dplyr::filter(modLoop == useMod)
+    dplyr::filter(modLoop == useMod) %>%
+    dplyr::mutate(resPath = gsub("Mod","Res",modPath)
+                  , res = map(resPath,read_rds)
+                  )
   
   modType <- thisMod$type
 
@@ -13,7 +16,7 @@
 
 ```{r data{{thisMod}}}
 
-  mod <- thisMod$mod[[1]]
+  mod <- read_rds(thisMod$modPath[[1]])
 
 ```
 

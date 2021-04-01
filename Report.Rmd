@@ -82,6 +82,7 @@ Total tidied records: `r format(nrow(datTidy),big.mark=",")`.
     {if(testRmd) sample(.,3) else .} %>%
     gsub(" ","",.)
     
+  taxaModsSummary <- tibble()
 
   for (i in taxGroupLoop) {
     
@@ -94,6 +95,19 @@ Total tidied records: `r format(nrow(datTidy),big.mark=",")`.
 ```
 
 `r paste(knit(text = taxGroupExp), collapse = '\n')`
+
+# Summary of overall results
+
+Table \@ref(tab:taxaModsSummary) shows the overall result for all taxa.
+
+```{r taxaModsSummary}
+
+  kable(taxaModsSummary %>%
+          dplyr::select(Taxa, Common, `Likelihood of decline` = overall)
+        , caption = "Summary of overall results"
+        )
+
+```
 
 # Appendix
 

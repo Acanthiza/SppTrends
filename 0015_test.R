@@ -13,39 +13,41 @@ if(testing) {
               )
   
   genera <- c(NULL
-              # , "Melithreptus"
-              # , "Pandion"
-              # , "Haliaeetus"
-              # , "Cacatua"
-              # , "Myiagra"
-              # , "Pseudonaja"
-              # , "Pogona"
-              # , "Vespadelus"
-              # , "Macropus"
-              # , "Pachycephala"
-              # , "Phylidonyris"
-              # , "Climacteris"
+              , "Melithreptus"
+              , "Pandion"
+              , "Haliaeetus"
+              , "Cacatua"
+              , "Myiagra"
+              , "Pseudonaja"
+              , "Pogona"
+              , "Vespadelus"
+              , "Macropus"
+              , "Pachycephala"
+              , "Phylidonyris"
+              , "Climacteris"
               )
   
   
-  kiSpp <- read_csv(path("data","kiSpp.csv")
-                    , col_names = FALSE
-                    ) %>%
-    dplyr::mutate(X1 = gsub("\\s"," ",X1)) %>%
-    tidyr::separate(X1,into = c("genus","species")) %>%
-    dplyr::mutate(spp = paste0(genus," ",species)) %>%
-    dplyr::distinct(spp) %>%
-    dplyr::arrange(spp) %>%
-    dplyr::pull(spp)
+  # kiSpp <- read_csv(path("data","kiSpp.csv")
+  #                   , col_names = FALSE
+  #                   ) %>%
+  #   dplyr::mutate(X1 = gsub("\\s"," ",X1)) %>%
+  #   tidyr::separate(X1,into = c("genus","species")) %>%
+  #   dplyr::mutate(spp = paste0(genus," ",species)) %>%
+  #   dplyr::distinct(spp) %>%
+  #   dplyr::arrange(spp) %>%
+  #   dplyr::pull(spp)
   
   
   spp <- c(NULL
-          # , "Melithreptus gularis"
-          # , "Melithreptus lunatus"
+          , "Melithreptus gularis"
+          , "Melithreptus lunatus"
           )
   
   
-  spp <- c(spp,kiSpp)
+  spp <- c(spp
+           #,kiSpp
+           )
   
     
   testOrder <- luTax %>%
