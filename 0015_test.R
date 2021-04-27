@@ -13,18 +13,18 @@ if(testing) {
               )
   
   genera <- c(NULL
-              , "Melithreptus"
+              #, "Melithreptus"
               , "Pandion"
               , "Haliaeetus"
-              , "Cacatua"
-              , "Myiagra"
-              , "Pseudonaja"
-              , "Pogona"
-              , "Vespadelus"
-              , "Macropus"
-              , "Pachycephala"
-              , "Phylidonyris"
-              , "Climacteris"
+              #, "Cacatua"
+              #, "Myiagra"
+              #, "Pseudonaja"
+              #, "Pogona"
+              #, "Vespadelus"
+              #, "Macropus"
+              #, "Pachycephala"
+              #, "Phylidonyris"
+              #, "Climacteris"
               )
   
   

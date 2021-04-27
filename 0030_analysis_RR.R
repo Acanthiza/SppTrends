@@ -3,47 +3,116 @@
   
   #-------Filter for analysis---------
   
-  # Sampling unit, or list, for rr and ll is based on a cell within a year. Thus, success is presence within a cell in a year
+  rrGroup <- alwaysGroup %>% grep("yday|month|site",.,invert = TRUE, value = TRUE)
   
-  allScales <- c("geo1","geo2","cell","site") #in order
-  analysisScales <- allScales[-length(allScales)]
+  datLong <- datTidy %>%
+    dplyr::distinct(Taxa,across(rrGroup)) %>%
+    dplyr::count(Taxa,geo2)
   
-  trials <- datTidy %>%
-    dplyr::distinct(year,!!ensym(taxGroup),across(any_of(allScales))) %>%
-    dplyr::group_by(year,!!ensym(taxGroup),across(any_of(analysisScales))) %>%
-    dplyr::summarise(trials = n()) %>%
-    dplyr::ungroup()
+  datWide <- datLong %>%
+    tidyr::pivot_wider(names_from = "geo2", values_from = "n", values_fill = 0)
   
-  success <- datTidy %>%
-    dplyr::distinct(Taxa,year,!!ensym(taxGroup),across(any_of(allScales))) %>%
-    dplyr::group_by(Taxa,year,!!ensym(taxGroup),across(any_of(analysisScales))) %>%
-    dplyr::summarise(success = n()) %>%
-    dplyr::ungroup()
+  dfWide <- data.frame(datWide[,-1])
   
-  datFiltered <- trials %>%
-    dplyr::left_join(success) %>%
-    dplyr::mutate(list = paste0(year,"-",!!ensym(taxGroup),"-",get(analysisScales[length(analysisScales)]))) %>%
-    dplyr::add_count(list, name = "listLength") %>%
+  rownames(dfWide) <- datWide$Taxa
+  
+  datDist <- vegan::vegdist(dfWide
+                   , method = "bray"
+                   , binary = TRUE
+                   )
+    
+  datDend <- clustMethod %>%
+    dplyr::mutate(dend = map(method
+                             ,~fastcluster::hclust(datDist, .)
+                             )
+                  )
+  
+  make_sil <- function(clustDf, distObj = datDist, clustID = "clust"){
+    
+    clustCol <- if(is.character(clustID)) which(names(clustDf)==clustID) else siteID
+    
+    silhouette(dplyr::pull(clustDf,clustCol),distObj)
+    
+  }
+  
+  # Turn an object of class silhouette into a data frame with one row per site
+  make_sil_df <- function(clustDf,silObj) {
+    
+    clustDf %>%
+      dplyr::bind_cols(tibble(neighbour = silObj[,2],sil_width = silObj[,3]))
+    
+  }
+  
+  # UPTOHERE - this is working, but not sure it is what is needed. Also need to get 'recGroup' by IBRA Subregion (geo2)
+  datClust <- datDend %>%
+    dplyr::mutate(clusters = map(dend
+                                 , cutree
+                                 , possibleGroups[possibleGroups < 0.5*nrow(datWide)]
+                                 )
+                  , clusters = map(clusters,as_tibble)
+                  ) %>%
+    dplyr::select(-dend) %>%
+    tidyr::unnest(clusters) %>%
+    tidyr::gather(groups,clust,2:ncol(.)) %>%
+    dplyr::mutate(groups = as.integer(groups)) %>%
+    tidyr::nest(clusters = c(clust)) %>%
+    dplyr::mutate(clusters = map(clusters, . %>%
+                                   dplyr::bind_cols(datWide[,1])
+                                 )
+                  ) %>%
+    #dplyr::sample_n(5) %>% # TESTING
+    dplyr::mutate(sil = map(clusters,make_sil)
+                  , silDf = map2(clusters,sil,make_sil_df)
+                  , macroSil = map_dbl(silDf,~mean(.$sil_width))
+                  ) %>%
+    tidyr::unnest(cols = c(silDf)) %>%
+    dplyr::group_by(Taxa) %>%
+    dplyr::filter(sil_width == max(sil_width)) %>%
+    dplyr::filter(macroSil == max(macroSil)) %>%
+    dplyr::ungroup() %>%
+    dplyr::mutate(recGroup = map2(clusters
+                                  ,clust
+                                  ,function(x,y) x %>%
+                                    dplyr::filter(clust == y) %>%
+                                    dplyr::select(recGroup = Taxa)
+                                  )
+                  ) %>%
+    tidyr::unnest(cols = c(recGroup)) %>%
+    dplyr::select(where(negate(is.list)))
+  
+  plot(dend)
+  
+  
     filter_taxa_data()
   
-  taxaGeo <- datFiltered %>%
-    dplyr::distinct(!!ensym(taxGroup)
-                    ,Taxa
-                    ,across(any_of(analysisScales))
-                    )
+  taxaCell <- datFiltered %>%
+    dplyr::distinct(Taxa,cell)
   
   #-------Data prep---------
   
+  
+  
   dat <- datFiltered %>%
-    dplyr::inner_join(taxaGeo) %>%
-    tidyr::pivot_wider(names_from = "Taxa", values_from = "success", values_fill = 0) %>%
-    tidyr::pivot_longer(cols = any_of(unique(taxaGeo$Taxa)),names_to = "Taxa", values_to = "success") %>%
-    dplyr::inner_join(taxaGeo) %>%
+    dplyr::mutate(success = 1) %>%
+    tidyr::nest(data = -c(!!ensym(taxGroup))) %>%
+    dplyr::mutate(data = map(data
+                             , . %>%
+                               tidyr::pivot_wider(names_from = "Taxa", values_from = "success", values_fill = 0) %>%
+                               tidyr::pivot_longer(cols = any_of(unique(taxaGeo$Taxa)),names_to = "Taxa", values_to = "success")
+                             )
+                  ) %>%
+    tidyr::unnest(cols = c(data)) %>%
+    dplyr::inner_join(taxaCell) %>%
     purrr::when(testing ~ (.) %>% dplyr::filter(Taxa %in% tests)
                 , !testing ~ (.)
                 ) %>%
+    dplyr::group_by(Taxa,across(taxGroup),across(alwaysGroup %>% grep("site",.,invert = TRUE, value = TRUE))) %>%
+    dplyr::summarise(success = sum(success)
+                     , trials = n()
+                     ) %>%
+    dplyr::ungroup() %>%
     dplyr::mutate(prop = success/trials) %>%
-    tidyr::nest(data = c(any_of(analysisScales),year,list,listLength,success,trials,prop)) %>%
+    tidyr::nest(data = -c(!!ensym(taxGroup),Taxa)) %>%
     dplyr::left_join(luTax %>%
                        dplyr::select(Taxa,Common)
                      )

@@ -4,7 +4,7 @@
   library(magrittr)
   
   runFrom <- 0
-  runTo <- 50
+  runTo <- 15
   excludes <- 0
   
   testing <- T
@@ -13,7 +13,7 @@
   
   getNewData <- FALSE
   
-  runReason <- paste0("Another attempt at full state run. Testing = ",testing,".")
+  runReason <- paste0("WIP. Recording groups being generated. Testing = ",testing,".")
   
   dir() %>%
     grep("^\\d{4}_.*\\.R$",.,value=TRUE) %>%

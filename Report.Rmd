@@ -71,7 +71,7 @@ Total tidied records: `r format(nrow(datTidy),big.mark=",")`.
 
   taxGroupNames <- taxaMods %>%
     dplyr::distinct(!!ensym(taxGroup)) %>%
-    dplyr::mutate(gbifInfo = map(!!ensym(taxGroup),name_backbone)) %>%
+    dplyr::mutate(gbifInfo = map(!!ensym(taxGroup),name_backbone,rank=taxGroup)) %>%
     tidyr::unnest(cols = c(gbifInfo)) %>%
     dplyr::mutate(Common = map_chr(usageKey,get_gbif_common))
 

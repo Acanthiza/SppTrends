@@ -12,29 +12,29 @@
   polyBuf <- 1000
   
   # What is the area of interest (AOI) for this analysis?
-  aoiName <- "KI"
-  aoiFullName <- "Kangaroo Island"
+  aoiName <- "Flinders Lofty Block"
+  aoiFullName <- "Flinders Lofty Block"
   Statewide <- F
   
   # Which polygons define the AOI?
   polyMask <- c(NULL
-                , "Simpson Strzelecki Dunefields"
-                , "Stony Plains"
-                , "Naracoorte Coastal Plain"
-                , "Nullarbor"
-                , "Southern Volcanic Plain"
-                , "Riverina"
-                , "Central Ranges"
-                , "Murray Darling Depression"
+                #, "Simpson Strzelecki Dunefields"
+                #, "Stony Plains"
+                #, "Naracoorte Coastal Plain"
+                #, "Nullarbor"
+                #, "Southern Volcanic Plain"
+                #, "Riverina"
+                #, "Central Ranges"
+                #, "Murray Darling Depression"
                 , "Flinders Lofty Block"
-                , "Hampton"
+                #, "Hampton"
                 , "Kanmantoo"
-                , "Channel Country"
-                , "Great Victoria Desert"
-                , "Broken Hill Complex"
-                , "Finke"
-                , "Eyre Yorke Block"
-                , "Gawler"
+                #, "Channel Country"
+                #, "Great Victoria Desert"
+                #, "Broken Hill Complex"
+                #, "Finke"
+                #, "Eyre Yorke Block"
+                #, "Gawler"
                 )
   
   # polyMask <- c(NULL
@@ -46,11 +46,11 @@
   geo2 <- "IBRA_SUB_N"
   
   # Taxonomic grouping
-  taxGroup <- "Order"
+  taxGroup <- "Class"
   
   # Length of one side of grid in metres
-  innerGrid <- 100
-  outerGrid <- 50*innerGrid
+  innerGrid <- 1000
+  outerGrid <- 10*innerGrid
   
   minYear <- 1985 #lubridate::year(Sys.time()) - 30
   
@@ -68,6 +68,37 @@
   
   nonRecords <- c("0","none detected","None detected","none detected ")
   
+  
+  #------Settings - cluster------
+  
+  # From the fastcluster manual https://cran.r-project.org/web/packages/fastcluster/vignettes/fastcluster.pdf
+  # "The following three methods are intended for Euclidean data only, ie. when X contains
+  # the pairwise squared distances between vectors in Euclidean space. The algorithm
+  # will work on any input, however, and it is up to the user to make sure that applying
+  # the methods makes sense:
+  # ....
+  # * centroid
+  # * median
+  # * ward.D and Ward.D2"
+  
+  # Thus, those methods are not used...
+  
+  clustMethod <- tibble::tibble( method = c(
+    "single" # had very few clusterings with minGroupSize > 1
+    , "complete" # consistently well below par silhouette widths
+    , "average" # didn't have any clusterings with minGroupSize > 1
+    , "mcquitty"# had very few clusterings with minGroupSize > 1
+    #, "ward.D"
+    , "ward.D2" # Let this one back in despite the fastcluster quote above (and hclustgeo uses it)
+    #, "centroid" # didn't have any clusterings with minGroupSize > 1
+    #, "median" # had very few clusterings with minGroupSize > 1
+  )
+  )
+  
+  # Possible groups
+  possibleGroups <- 2:20
+  minSites <- 10
+  minSpp <- 3
   
   #--------Analysis - RR----------------
   
@@ -234,6 +265,53 @@
                                    , breaks = c(0,.$maxVal)
                                    )
                   )
+  
+  
+  # Diagnostics
+  diagnostics <- tribble(
+    ~diagnostic, ~diagDefinition
+    , "avClustSize", "Average cluster size"
+    , "maxClustSize", "Maximum cluster size"
+    , "propClustersMin", paste0("Proportion of clusters with more than ",minSites," sites")
+    , "propSitesClustersMin", paste0("Proportion of sites in clusters with more than ",minSites," sites")
+    , "macroSil", "Mean silhouette width of clustering"
+    , "macroWSS",  "Total within group sum-of-squares across all clusters"
+    , "propGoodClusters", "Proportion of good clusters"
+    , "propGoodSites", "Proportion of sites in good clusters"
+    , "kappa", "Kappa value"
+    , "accuracy", "Accuracy value"
+  ) %>%
+    dplyr::left_join(
+      tribble(
+        ~diagnostic, ~highGood
+        , "avClustSize", TRUE
+        , "maxClustSize", FALSE
+        , "propClustersMin", TRUE
+        , "propSitesClustersMin", TRUE
+        , "macroSil", TRUE
+        , "macroWSS",  FALSE
+        , "propGoodClusters", TRUE
+        , "propGoodSites", TRUE
+        , "kappa", TRUE
+        , "accuracy", TRUE
+      )
+    ) %>%
+    dplyr::left_join(
+      tribble(
+        ~diagnostic, ~weightClusters
+        , "avClustSize", FALSE
+        , "maxClustSize", FALSE
+        , "propClustersMin", TRUE
+        , "propSitesClustersMin", TRUE
+        , "macroSil", TRUE
+        , "macroWSS",  TRUE
+        , "propGoodClusters", FALSE
+        , "propGoodSites", FALSE
+        , "kappa", FALSE
+        , "accuracy", FALSE
+      )
+    ) %>%
+    dplyr::mutate(across(where(is.character),~fct_inorder(.)))
 
 #----------Maps-----------
   

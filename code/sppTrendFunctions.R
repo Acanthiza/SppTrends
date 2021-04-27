@@ -1,3 +1,101 @@
+  
+  
+# What other taxa are recorded in conjunction with taxa X? These help create absences....
+
+  make_clusters <- function(data
+                            ,methodsDf = clustMethod
+                            ,sppCol = "Taxa"
+                            ,siteCol = "list"
+                            ,groups = possibleGroups[possibleGroups < 0.5*length(unique(data$Taxa))]
+                            ,minTaxaCount = 1
+                            ) {
+    
+    datWide <- data %>%
+      dplyr::add_count(!!ensym(sppCol)) %>%
+      dplyr::filter(n > minTaxaCount) %>%
+      dplyr::select(!!ensym(sppCol),!!ensym(siteCol)) %>%
+      dplyr::mutate(p = 1) %>%
+      tidyr::pivot_wider(names_from = all_of(sppCol), values_from = "p", values_fill = 0)
+    
+    siteNames <- datWide %>% dplyr::pull(!!ensym(siteCol))
+    
+    dist <- parDist(datWide %>% tibble::column_to_rownames(siteCol) %>% as.matrix()
+                    , method = "bray"
+                    , threads = useCores
+                    )
+    
+    dend <- methodsDf %>%
+      dplyr::mutate(dend = map(method
+                               ,~fastcluster::hclust(dist, .)
+                               )
+                    )
+    
+    clust <- dend %>%
+      dplyr::mutate(clusters = map(dend
+                                   , cutree
+                                   , groups
+                                   )
+                    , clusters = map(clusters
+                                     , as_tibble
+                                     )
+                    ) %>%
+      dplyr::select(-dend) %>%
+      tidyr::unnest(clusters) %>%
+      tidyr::pivot_longer(2:ncol(.),names_to = "groups",values_to ="clust") %>%
+      dplyr::mutate(groups = as.integer(groups)) %>%
+      tidyr::nest(clusters = c(clust)) %>%
+      dplyr::mutate(clusters = future_map(clusters
+                                          , . %>%
+                                            dplyr::mutate(!!ensym(siteCol) := siteNames
+                                                          , cluster = numbers2words(clust)
+                                                          , cluster = fct_reorder(cluster,clust)
+                                                          )
+                                          )
+                    )
+    
+  }
+  
+  clusters_summarise <- function(clustersDf) {
+    
+    clustersDf %>%
+      dplyr::mutate(summaries = future_map(clusters,cluster_summarise)) %>%
+      tidyr::unnest(cols = c(summaries)) %>%
+      dplyr::mutate(sil = future_map(clusters,make_sil,distObj = dist)
+                    , silDf = future_map2(clusters,sil,make_sil_df)
+                    , macroSil = map_dbl(silDf,~mean(.$sil_width))
+                    , indval = future_map(clusters,cluster_indval,datWide)
+                    , indValDf = future_map2(indval,clusters,cluster_indval_df)
+                    , wss = future_map2(clusters,clusters,calc_SS,dist = dist)
+                    , macroWSS = map_dbl(wss,~sum(.$wss))
+                    )
+    
+    clustDiagnostics <- diagnostic_df(clust, topThresh = 0.9, bestThresh = 1, diagnosticMinGroups = min(possibleGroups))
+    
+    # diagnostic_plot(clustDiagnostics)
+    
+    clustBest <- clustDiagnostics %>%
+      dplyr::filter(best) %>%
+      dplyr::distinct(method,groups) %>%
+      dplyr::inner_join(clust %>%
+                          dplyr::select(method,groups,indValDf,contains("macro"))
+                        ) %>%
+      tidyr::unnest(cols = c(indValDf)) %>%
+      dplyr::filter(macroSil == max(macroSil)) %>%
+      dplyr::filter(macroWSS == min(macroWSS))
+    
+  }
+
+
+
+  add_list_length <- function(df,groups) {
+    
+    df %>%
+      dplyr::mutate(list = paste(!!!rlang::syms(groups),sep="_")) %>%
+      dplyr::add_count(list, name = "listLength") %>%
+      dplyr::mutate(success = 1)
+    
+  }
+  
     
   mod_explore <- function(Taxa
                           , Common
@@ -5,7 +103,7 @@
                           , modPath
                           , modType
                           , respVar = "prop"
-                          , expVar = c(analysisScales,"year")
+                          , expVar = alwaysGroup %>% grep("yday|site",.,value = TRUE,invert = TRUE)
                           , maxLevels = 30
                           , draws = 200
                           , postGroups = c("Taxa"

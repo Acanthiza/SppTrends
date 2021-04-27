@@ -5,12 +5,11 @@
   
   # Sampling unit, or list, for rr and ll is based on a cell within a year. Thus, success is presence within a cell in a year
   
-  allScales <- c("geo1","geo2","cell") #in order
-  analysisScales <- allScales
+  
   
   trials <- datTidy %>%
     dplyr::distinct(year,!!ensym(taxGroup),across(any_of(allScales))) %>%
-    dplyr::group_by(year,!!ensym(taxGroup),across(any_of(analysisScales))) %>%
+    dplyr::group_by(year,!!ensym(taxGroup),across(any_of(allScales))) %>%
     dplyr::summarise(trials = n()) %>%
     dplyr::ungroup()
   

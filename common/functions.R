@@ -1,4 +1,225 @@
 
+#------Clustering---------
+
+  # Make a cluster data frame
+  make_cluster_df <- function(rawClusters,siteIDsDf) {
+    
+    siteIDsDf %>%
+      dplyr::mutate(id = row_number()) %>%
+      dplyr::bind_cols(rawClusters %>%
+                         dplyr::mutate(cluster = numbers2words(clust)
+                                       , cluster = fct_reorder(cluster,clust)
+                                       )
+                       )
+    
+  }
+  
+
+  clustering_summarise <- function(df,groupName="clust",smallest = minClust) {
+    
+    clust <- df %>% dplyr::select(all_of(groupName))
+    
+    tab <- table(clust)
+    
+    tibble(nSites = nrow(clust)
+           , nClusters = length(tab)
+           , minClustSize = min(tab)
+           , avClustSize = mean(tab)
+           , maxClustSize = max(tab)
+           , nClustNotSmall = sum(tab >= smallest)
+           , nSiteNotSmall = sum(tab[tab >= smallest])
+           ) %>%
+      dplyr::mutate(propClusterNotSmall = nClustNotSmall/nClusters
+                    , propSitesNotSmall = nSiteNotSmall/nSites
+                    )
+    
+  }
+  
+  make_sil <- function(clustDf, distObj = datDist, clustID = "clust"){
+    
+    clustCol <- if(is.character(clustID)) which(names(clustDf)==clustID) else siteID
+    
+    silhouette(dplyr::pull(clustDf,clustCol),distObj)
+    
+  }
+  
+  # Turn an object of class silhouette into a data frame with one row per site
+  make_sil_df <- function(clustDf,silObj) {
+    
+    clustDf %>%
+      dplyr::bind_cols(tibble(neighbour = silObj[,2],sil_width = silObj[,3]))
+    
+  }
+  
+  # Calculate the within clusters sum of squares using only the floristic distances (datDist)
+  calc_SS <- function(clustDf,clustDfMin,dist = datDist) {
+    
+    if(!exists("sqDist")) sqDist <- as.matrix(dist^2)
+    
+    clustDf %>%
+      dplyr::mutate(id = row_number()) %>%
+      dplyr::inner_join(clustDfMin) %>%
+      dplyr::group_by(cluster) %>%
+      tidyr::nest() %>%
+      dplyr::ungroup() %>%
+      #dplyr::sample_n(2) %>% # TESTING
+      dplyr::mutate(wss = map_dbl(data
+                                  , ~sum(sqDist[.$id,.$id])/(2*nrow(.))
+                                  )
+                    ) %>%
+      dplyr::select(-data)
+    
+  }
+  
+  
+#-------Clustering - Indval--------
+  
+  cluster_indval <- function(clustDf,dfWithNames = datWide){
+    
+    # clustDf is usually siteID, clust, cluster
+    # datWide is usually siteID * spp
+    
+    datForInd <- clustDf %>%
+      dplyr::inner_join(dfWithNames) %>%
+      .[,colSums(. != 0) > 0]
+    
+    labdsv::indval(datForInd[,names(datForInd) %in% names(datWide[,-1])]
+                   ,datForInd$clust
+                   )
+    
+  }
+  
+  
+  # Indval result
+  cluster_indval_df <- function(clustInd,clustDf){
+    
+    tibble(Taxa = names(clustInd$maxcls)
+           , clust = clustInd$maxcls
+           , indval = clustInd$indcls
+           , pval = clustInd$pval
+           ) %>%
+      dplyr::inner_join(clustInd$relabu %>%
+                          as_tibble(rownames = "Taxa") %>%
+                          tidyr::gather(clust,abu,names(.)[names(.) %in% unique(clustDf$clust)]) %>%
+                          dplyr::mutate(clust = as.numeric(clust)) %>%
+                          dplyr::filter(abu > 0)
+                       ) %>%
+      dplyr::inner_join(clustInd$relfrq %>%
+                         as_tibble(rownames = "Taxa") %>%
+                         tidyr::gather(clust,frq,names(.)[names(.) %in% unique(clustDf$clust)]) %>%
+                         dplyr::mutate(clust = as.numeric(clust)) %>%
+                         dplyr::filter(frq > 0)
+                       ) %>%
+      dplyr::mutate(clust = as.numeric(clust)
+                    , cluster = numbers2words(as.numeric(clust))
+                    , cluster = fct_reorder(cluster,clust)
+                    )
+    
+  }
+  
+  #------Clustering - Diagnostics----------
+  
+  
+  diagnostic_plot <- function(diagnosticDf,labelDiagnostic = "diagnostic") {
+    
+    ggplot(diagnosticDf
+           ,aes(groups
+                , value
+                , colour = combo
+                , alpha = weight
+                , label = groups
+                , size = top
+                )
+           ) +
+      geom_point() +
+      geom_text_repel(data = diagnosticDf %>%
+                        dplyr::filter(best)
+                      , size = 2
+                      , show.legend = FALSE
+                      , box.padding = 1
+                      , min.segment.length = 0
+                      , colour = "black"
+                      ) +
+      facet_grid(as.formula(paste0(labelDiagnostic,"~method"))
+                 , scales="free_y"
+                 ,  labeller = label_wrap_gen(25,multi_line = TRUE)
+                 ) +
+      labs(colour = "Combination"
+           , alpha = "Diagnostic used" #paste0("Top ",unique(diagnosticDf$topThresh)*100,"%")
+           , title = paste0("Labels indicate top ",numbers2words(unique(diagnosticDf$bestThresh))," results")
+           , size = paste0("Best ",(1-unique(diagnosticDf$topThresh))*100,"%")
+           ) +
+      scale_colour_viridis_c() +
+      scale_x_continuous(breaks = scales::pretty_breaks()) +
+      theme(strip.text.y = element_text(angle = 0))
+    
+  }
+  
+  
+  diagnostic_df <- function(df
+                            , useWeights = "weightClusters"
+                            , diagnosticMinGroups = targetMinGroups
+                            , summariseMethod = median
+                            , topThresh = 2/3
+                            , bestThresh = 5
+                            , diagnosticDf = diagnostics
+                            ) {
+    
+    df %>%
+      dplyr::filter(groups > diagnosticMinGroups) %>%
+      dplyr::select(method,groups,any_of(diagnostics$diagnostic)) %>%
+      #select_if(~ !all(is.na(.))) %>%
+      dplyr::group_by(method,groups) %>%
+      dplyr::summarise(across(any_of(diagnostics$diagnostic),summariseMethod)) %>%
+      dplyr::ungroup() %>%
+      tidyr::pivot_longer(any_of(diagnostics$diagnostic),names_to = "diagnostic", values_to = "value") %>%
+      dplyr::left_join(diagnostics) %>%
+      dplyr::group_by(diagnostic,diagDefinition) %>%
+      dplyr::mutate(scale = if_else(highGood
+                                    ,scales::rescale(value,to=c(0,1))
+                                    ,scales::rescale(desc(value),to=c(0,1))
+                                    )
+                    ) %>%
+      dplyr::ungroup() %>%
+      dplyr::mutate(comboInit = scale*!!ensym(useWeights)) %>%
+      dplyr::group_by(method,groups) %>%
+      dplyr::mutate(combo = mean(comboInit)) %>%
+      dplyr::ungroup() %>%
+      dplyr::mutate(combo = scales::rescale(combo,to=c(0,1))) %>%
+      dplyr::mutate(topThresh = topThresh
+                    , bestThresh = bestThresh
+                    , top = combo >= topThresh
+                    , top = if_else(is.na(top),FALSE,top)
+                    , best = combo >= sort(unique(.$combo),TRUE)[bestThresh]
+                    , best = if_else(is.na(best),FALSE,best)
+                    , diagnostic = factor(diagnostic, levels = levels(diagnostics$diagnostic))
+                    , weight = !!ensym(useWeights)
+                    )
+    
+  }
+  
+#-------
+
+
+  dist_to_df <- function(inDist,patchNames) {
+    
+    # https://stackoverflow.com/questions/23474729/convert-object-of-class-dist-into-data-frame-in-r/23475065
+    
+    if (class(inDist) != "dist") stop("wrong input type")
+    A <- attr(inDist, "Size")
+    B <- patchNames
+    if (isTRUE(attr(inDist, "Diag"))) attr(inDist, "Diag") <- FALSE
+    if (isTRUE(attr(inDist, "Upper"))) attr(inDist, "Upper") <- FALSE
+    data.frame(
+      row = B[unlist(lapply(sequence(A)[-1], function(x) x:A))],
+      col = rep(B[-length(B)], (length(B)-1):1),
+      value = as.vector(inDist))
+    
+  }
+
+
+  
+
 
 # Convert deg°min'sec to decimal degrees
   deg_min_sec_to_dec_deg <- function(df,col,sep = "\u00B0|'", into = c("lat","long")) {
@@ -1265,7 +1486,12 @@ ah2sp <- function(x, increment=360, rnd=10, proj4string=CRS(as.character(NA)),to
   }
   
   # Create polygon mask for filtering of patches
-  make_aoi <- function(polygons,filterPolys = FALSE,filterPolysCol=NULL,polyBuffer,doMask = TRUE) {
+  make_aoi <- function(polygons
+                       ,filterPolys = FALSE
+                       ,filterPolysCol=NULL
+                       ,polyBuffer
+                       ,doMask = TRUE
+                       ) {
     
     if(filterPolys != FALSE) polygons <- polygons %>%
         dplyr::filter(!!ensym(filterPolysCol) %in% filterPolys)
