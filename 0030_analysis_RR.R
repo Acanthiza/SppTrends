@@ -3,111 +3,43 @@
   
   #-------Filter for analysis---------
   
-  rrGroup <- alwaysGroup %>% grep("yday|month|site",.,invert = TRUE, value = TRUE)
+  rrGroup <- alwaysGroup %>% grep("yday|month",.,invert = TRUE, value = TRUE)
   
-  datLong <- datTidy %>%
-    dplyr::distinct(Taxa,across(rrGroup)) %>%
-    dplyr::count(Taxa,geo2)
-  
-  datWide <- datLong %>%
-    tidyr::pivot_wider(names_from = "geo2", values_from = "n", values_fill = 0)
-  
-  dfWide <- data.frame(datWide[,-1])
-  
-  rownames(dfWide) <- datWide$Taxa
-  
-  datDist <- vegan::vegdist(dfWide
-                   , method = "bray"
-                   , binary = TRUE
-                   )
-    
-  datDend <- clustMethod %>%
-    dplyr::mutate(dend = map(method
-                             ,~fastcluster::hclust(datDist, .)
-                             )
-                  )
-  
-  make_sil <- function(clustDf, distObj = datDist, clustID = "clust"){
-    
-    clustCol <- if(is.character(clustID)) which(names(clustDf)==clustID) else siteID
-    
-    silhouette(dplyr::pull(clustDf,clustCol),distObj)
-    
-  }
-  
-  # Turn an object of class silhouette into a data frame with one row per site
-  make_sil_df <- function(clustDf,silObj) {
-    
-    clustDf %>%
-      dplyr::bind_cols(tibble(neighbour = silObj[,2],sil_width = silObj[,3]))
-    
-  }
-  
-  # UPTOHERE - this is working, but not sure it is what is needed. Also need to get 'recGroup' by IBRA Subregion (geo2)
-  datClust <- datDend %>%
-    dplyr::mutate(clusters = map(dend
-                                 , cutree
-                                 , possibleGroups[possibleGroups < 0.5*nrow(datWide)]
-                                 )
-                  , clusters = map(clusters,as_tibble)
-                  ) %>%
-    dplyr::select(-dend) %>%
-    tidyr::unnest(clusters) %>%
-    tidyr::gather(groups,clust,2:ncol(.)) %>%
-    dplyr::mutate(groups = as.integer(groups)) %>%
-    tidyr::nest(clusters = c(clust)) %>%
-    dplyr::mutate(clusters = map(clusters, . %>%
-                                   dplyr::bind_cols(datWide[,1])
-                                 )
-                  ) %>%
-    #dplyr::sample_n(5) %>% # TESTING
-    dplyr::mutate(sil = map(clusters,make_sil)
-                  , silDf = map2(clusters,sil,make_sil_df)
-                  , macroSil = map_dbl(silDf,~mean(.$sil_width))
-                  ) %>%
-    tidyr::unnest(cols = c(silDf)) %>%
-    dplyr::group_by(Taxa) %>%
-    dplyr::filter(sil_width == max(sil_width)) %>%
-    dplyr::filter(macroSil == max(macroSil)) %>%
-    dplyr::ungroup() %>%
-    dplyr::mutate(recGroup = map2(clusters
-                                  ,clust
-                                  ,function(x,y) x %>%
-                                    dplyr::filter(clust == y) %>%
-                                    dplyr::select(recGroup = Taxa)
-                                  )
-                  ) %>%
-    tidyr::unnest(cols = c(recGroup)) %>%
-    dplyr::select(where(negate(is.list)))
-  
-  plot(dend)
-  
-  
+  datFiltered <- datTidy %>%
+    dplyr::distinct(Taxa,across(all_of(taxGroup)),across(all_of(rrGroup))) %>%
+    add_list_length(groups = c(taxGroup,rrGroup)) %>%
     filter_taxa_data()
   
-  taxaCell <- datFiltered %>%
-    dplyr::distinct(Taxa,cell)
+  
+  #------Absences from cooccurs-------
+  
+  datCooccur <- datFiltered %>%
+    dplyr::mutate(p = 1) %>%
+    dplyr::bind_rows(datFiltered %>%
+                       dplyr::distinct(!!ensym(taxGroup)
+                                      , geo2
+                                      ) %>%
+                       dplyr::inner_join(contextCooccur) %>%
+                       tidyr::unnest(cols = c(pair)) %>%
+                       dplyr::select(where(negate(is.list))) %>%
+                       dplyr::rename(indicatesAbsence = Taxa
+                                     , Taxa = sp2
+                                     ) %>%
+                       dplyr::inner_join(datFiltered) %>%
+                       dplyr::mutate(p = 0) %>%
+                       dplyr::select(-Taxa) %>%
+                       dplyr::rename(Taxa = indicatesAbsence)
+                     ) %>%
+    dplyr::group_by(across(all_of(grep("^p$",names(datFiltered),value = TRUE,invert = TRUE)))) %>%
+    dplyr::summarise(p = max(p)) %>%
+    dplyr::ungroup()
+  
   
   #-------Data prep---------
   
-  
-  
-  dat <- datFiltered %>%
-    dplyr::mutate(success = 1) %>%
-    tidyr::nest(data = -c(!!ensym(taxGroup))) %>%
-    dplyr::mutate(data = map(data
-                             , . %>%
-                               tidyr::pivot_wider(names_from = "Taxa", values_from = "success", values_fill = 0) %>%
-                               tidyr::pivot_longer(cols = any_of(unique(taxaGeo$Taxa)),names_to = "Taxa", values_to = "success")
-                             )
-                  ) %>%
-    tidyr::unnest(cols = c(data)) %>%
-    dplyr::inner_join(taxaCell) %>%
-    purrr::when(testing ~ (.) %>% dplyr::filter(Taxa %in% tests)
-                , !testing ~ (.)
-                ) %>%
-    dplyr::group_by(Taxa,across(taxGroup),across(alwaysGroup %>% grep("site",.,invert = TRUE, value = TRUE))) %>%
-    dplyr::summarise(success = sum(success)
+  dat <- datCooccur %>%
+    dplyr::group_by(Taxa,!!ensym(taxGroup),across(all_of(rrGroup[-length(rrGroup)]))) %>%
+    dplyr::summarise(success = sum(p)
                      , trials = n()
                      ) %>%
     dplyr::ungroup() %>%
@@ -166,6 +98,7 @@
   
   # Check if rr models have been run - run if not
   todo <- dat %>%
+    {if(testing) (.) %>% dplyr::filter(Taxa %in% tests) else (.)} %>%
     dplyr::mutate(outFile = fs::path(outDir,paste0("reporting-rate_Mod_",Taxa,".rds"))
                   , done = map_lgl(outFile,file.exists)
                   ) %>%

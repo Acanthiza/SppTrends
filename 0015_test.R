@@ -13,18 +13,18 @@ if(testing) {
               )
   
   genera <- c(NULL
-              #, "Melithreptus"
+              , "Melithreptus"
               , "Pandion"
               , "Haliaeetus"
-              #, "Cacatua"
-              #, "Myiagra"
-              #, "Pseudonaja"
-              #, "Pogona"
-              #, "Vespadelus"
-              #, "Macropus"
-              #, "Pachycephala"
-              #, "Phylidonyris"
-              #, "Climacteris"
+              , "Cacatua"
+              , "Myiagra"
+              , "Pseudonaja"
+              , "Pogona"
+              , "Vespadelus"
+              , "Macropus"
+              , "Pachycephala"
+              , "Phylidonyris"
+              , "Climacteris"
               )
   
   
@@ -61,5 +61,12 @@ if(testing) {
   
   tests <- sort(unique(c(testOrder$Taxa,testGenus$Taxa,testSpp$Taxa)))
   
+  testTaxGroups <- luTax %>%
+    dplyr::filter(Taxa %in% tests) %>%
+    dplyr::pull(!!ensym(taxGroup)) %>%
+    unique()
+  
 }
+
+  
   

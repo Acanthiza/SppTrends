@@ -6,40 +6,42 @@
   
   # Sampling unit for occupancy is based on a cell within a yearmon. Thus, success is presence within a cell in a yearmon
   
-  allScales <- c("geo1","geo2","cell","site") #in order
-  analysisScales <- allScales[-length(allScales)]
+  occGroup <- alwaysGroup
   
-  success <- datTidy %>%
-    dplyr::distinct(Taxa,year,yday,!!ensym(taxGroup),across(any_of(allScales))) %>%
-    dplyr::mutate(success = 1)
+  datFiltered <- datTidy %>%
+    dplyr::distinct(Taxa,across(all_of(taxGroup)),across(all_of(occGroup))) %>%
+    add_list_length(groups = c(taxGroup,occGroup)) %>%
+    filter_taxa_data()
   
-  datFiltered <- success %>%
-    dplyr::mutate(list = paste0(year,"-",yday,"-",!!ensym(taxGroup),"-",get(analysisScales[length(analysisScales)]))) %>%
-    dplyr::add_count(list, name = "listLength") %>%
-    filter_taxa_data(minListLengthThresh = 0
-                     , maxListLengthOccurenceThresh = 0
-                     , minlistOccurenceThresh = 0
-                     , minYearsThresh = 3
-                     , minListLengthsThresh = 0
-                     )
+  
+  #------Absences from cooccurs-------
+  
+  datCooccur <- datFiltered %>%
+    dplyr::mutate(p = 1) %>%
+    dplyr::bind_rows(datFiltered %>%
+                       dplyr::distinct(!!ensym(taxGroup)
+                                       , geo2
+                                       ) %>%
+                       dplyr::inner_join(contextCooccur) %>%
+                       tidyr::unnest(cols = c(pair)) %>%
+                       dplyr::select(where(negate(is.list))) %>%
+                       dplyr::rename(indicatesAbsence = Taxa
+                                     , Taxa = sp2
+                                     ) %>%
+                       dplyr::inner_join(datFiltered) %>%
+                       dplyr::mutate(p = 0) %>%
+                       dplyr::select(-Taxa) %>%
+                       dplyr::rename(Taxa = indicatesAbsence)
+                     ) %>%
+    dplyr::group_by(across(all_of(grep("^p$",names(datFiltered),value = TRUE,invert = TRUE)))) %>%
+    dplyr::summarise(p = sum(p)) %>%
+    dplyr::ungroup()
   
   
   #-------Data prep---------
   
-  siteYearVisit <- datFiltered %>%
-    dplyr::distinct(across(any_of(taxGroup)),geo1,geo2,cell,site,year,yday,list,listLength)
-  
-  taxaCellYear <- datFiltered %>%
-    dplyr::distinct(across(any_of(taxGroup)),Taxa,cell,year)
-  
-  dat <- siteYearVisit %>%
-    dplyr::left_join(taxaCellYear) %>%
-    dplyr::left_join(datFiltered) %>%
-    dplyr::mutate(success = if_else(is.na(success),0,success)) %>%
-    purrr::when(testing ~ (.) %>% dplyr::filter(Taxa %in% tests)
-                , !testing ~ (.)
-                ) %>%
-    tidyr::nest(data = -c(Order,Taxa)) %>%
+  dat <- datCooccur %>%
+    tidyr::nest(data = -c(!!ensym(taxGroup),Taxa)) %>%
     dplyr::left_join(luTax %>%
                        dplyr::select(Taxa,Common)
                      )
@@ -57,11 +59,12 @@
     cells <- length(unique(data$cell))
     
     datOccPrep <- data %>%
-      dplyr::distinct(year,geo2,cell,yday,site,success) %>%
+      dplyr::distinct(year,geo2,cell,yday,site,p) %>%
       tidyr::nest(data = -c(year,geo2,cell)) %>%
+      dplyr::filter(map_lgl(data,~sum(.$p) > 0)) %>%
       dplyr::mutate(data = map(data, . %>%
                                  tidyr::pivot_wider(names_from = "yday"
-                                                    , values_from = "success"
+                                                    , values_from = "p"
                                                     #, values_fill = 0
                                                     )
                                )
@@ -162,6 +165,7 @@
   #------Run models-------
   
   todo <- dat %>%
+    {if(testing) (.) %>% dplyr::filter(Taxa %in% tests) else (.)} %>%
     dplyr::mutate(outFile = fs::path(outDir,paste0("occupancy_Mod_",Taxa,".rds"))
                   , done = map_lgl(outFile,file.exists)
                   ) %>%
@@ -189,15 +193,7 @@
   
   #--------Explore models-----------
   
-  read_rds_file <- function(path) {
-    
-    print(path)
-    
-    read_rds(path)
-    
-  }
-  
-  taxaModsOC <- dat %>%
+ taxaModsOC <- dat %>%
     dplyr::mutate(data = fs::path(outDir,paste0("occupancyDf_",Taxa,".feather"))
                   , modPath = fs::path(outDir,paste0("occupancy_Mod_",Taxa,".rds"))
                   ) %>%

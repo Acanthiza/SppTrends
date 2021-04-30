@@ -5,50 +5,53 @@
   
   # Sampling unit, or list, for rr and ll is based on a cell within a year. Thus, success is presence within a cell in a year
   
+  llGroup <- alwaysGroup %>% grep("yday|month|site",.,invert = TRUE, value = TRUE)
   
-  
-  trials <- datTidy %>%
-    dplyr::distinct(year,!!ensym(taxGroup),across(any_of(allScales))) %>%
-    dplyr::group_by(year,!!ensym(taxGroup),across(any_of(allScales))) %>%
-    dplyr::summarise(trials = n()) %>%
-    dplyr::ungroup()
-  
-  success <- datTidy %>%
-    dplyr::distinct(Taxa,year,!!ensym(taxGroup),across(any_of(allScales))) %>%
-    dplyr::group_by(Taxa,year,!!ensym(taxGroup),across(any_of(analysisScales))) %>%
-    dplyr::summarise(success = n()) %>%
-    dplyr::ungroup()
-  
-  datFiltered <- trials %>%
-    dplyr::left_join(success) %>%
-    dplyr::mutate(list = paste0(year,"-",!!ensym(taxGroup),"-",get(analysisScales[length(analysisScales)]))) %>%
-    dplyr::add_count(list, name = "listLength") %>%
+  datFiltered <- datTidy %>%
+    dplyr::distinct(Taxa,across(all_of(taxGroup)),across(all_of(llGroup)),site) %>%
+    add_list_length(groups = c(taxGroup,llGroup)) %>%
     filter_taxa_data()
   
-  taxaGeo <- datFiltered %>%
-    dplyr::distinct(!!ensym(taxGroup)
-                    ,Taxa
-                    ,across(any_of(analysisScales))
-                    )
+  
+  #------Absences from cooccurs-------
+  
+  datCooccur <- datFiltered %>%
+    dplyr::mutate(p = 1) %>%
+    dplyr::bind_rows(datFiltered %>%
+                       dplyr::distinct(!!ensym(taxGroup)
+                                       , geo2
+                                       ) %>%
+                       dplyr::inner_join(contextCooccur) %>%
+                       tidyr::unnest(cols = c(pair)) %>%
+                       dplyr::select(where(negate(is.list))) %>%
+                       dplyr::rename(indicatesAbsence = Taxa
+                                     , Taxa = sp2
+                                     ) %>%
+                       dplyr::inner_join(datFiltered) %>%
+                       dplyr::mutate(p = 0) %>%
+                       dplyr::select(-Taxa) %>%
+                       dplyr::rename(Taxa = indicatesAbsence)
+                     ) %>%
+    dplyr::group_by(across(all_of(grep("^p$",names(datFiltered),value = TRUE,invert = TRUE)))) %>%
+    dplyr::summarise(p = sum(p)) %>%
+    dplyr::ungroup()
+  
   
   #-------Data prep---------
   
-  dat <- datFiltered %>%
-    dplyr::inner_join(taxaGeo) %>%
-    tidyr::pivot_wider(names_from = "Taxa", values_from = "success", values_fill = 0) %>%
-    tidyr::pivot_longer(cols = any_of(unique(taxaGeo$Taxa)),names_to = "Taxa", values_to = "success") %>%
-    dplyr::inner_join(taxaGeo) %>%
-    purrr::when(testing ~ (.) %>% dplyr::filter(Taxa %in% tests)
-                , !testing ~ (.)
-                ) %>%
+  dat <- datCooccur %>%
+    dplyr::group_by(across(all_of(grep("site|^p$",names(datCooccur),value = TRUE,invert = TRUE)))) %>%
+    dplyr::summarise(success = sum(p)
+                     , trials = n()
+                     ) %>%
+    dplyr::ungroup() %>%
     dplyr::mutate(prop = success/trials
                   , listLengthLog = log(listLength)
                   ) %>%
-    tidyr::nest(data = c(any_of(analysisScales),year,list,contains("listLength"),success,trials,prop)) %>%
+    tidyr::nest(data = -c(!!ensym(taxGroup),Taxa)) %>%
     dplyr::left_join(luTax %>%
                        dplyr::select(Taxa,Common)
                      )
-  
   
   
   #------model function--------
@@ -101,6 +104,7 @@
   #------Run models-------
  
   todo <- dat %>%
+    {if(testing) (.) %>% dplyr::filter(Taxa %in% tests) else (.)} %>%
     dplyr::mutate(outFile = fs::path(outDir,paste0("list-length_Mod_",Taxa,".rds"))
                   , done = map_lgl(outFile,file.exists)
                   ) %>%

@@ -8,6 +8,8 @@
                   )
   
   taxaModsOverall <- taxaMods %>%
+    dplyr::mutate(yearDiffDfDo = map_lgl(yearDiffDfPath,file.exists)) %>%
+    dplyr::filter(yearDiffDfDo) %>%
     dplyr::mutate(yearDiffDf  = map(yearDiffDfPath,read_feather)) %>%
     dplyr::select(type,yearDiffDf) %>%
     tidyr::unnest(cols = c(yearDiffDf)) %>%

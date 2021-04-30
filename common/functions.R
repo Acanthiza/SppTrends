@@ -1,7 +1,85 @@
 
 #------Clustering---------
 
-  # Make a cluster data frame
+  make_clusters <- function(data
+                            ,methodsDf = clustMethod
+                            ,sppCol = "Taxa"
+                            ,siteCol = "list"
+                            ,groups = possibleGroups[possibleGroups < 0.5*length(unique(data$Taxa))]
+                            ,minTaxaCount = 1
+                            ) {
+    
+    datWide <- data %>%
+      dplyr::add_count(!!ensym(sppCol)) %>%
+      dplyr::filter(n > minTaxaCount) %>%
+      dplyr::select(!!ensym(sppCol),!!ensym(siteCol)) %>%
+      dplyr::mutate(p = 1) %>%
+      tidyr::pivot_wider(names_from = all_of(sppCol), values_from = "p", values_fill = 0)
+    
+    siteNames <- datWide %>% dplyr::pull(!!ensym(siteCol))
+    
+    dist <- parDist(datWide %>% tibble::column_to_rownames(siteCol) %>% as.matrix()
+                    , method = "bray"
+                    , threads = useCores
+                    )
+    
+    assign("sqDist",as.matrix(dist^2),pos = .GlobalEnv)
+    
+    dend <- methodsDf %>%
+      dplyr::mutate(dend = map(method
+                               ,~fastcluster::hclust(dist, .)
+                               )
+                    )
+    
+    clust <- dend %>%
+      dplyr::mutate(clusters = map(dend
+                                   , cutree
+                                   , groups
+                                   )
+                    , clusters = map(clusters
+                                     , as_tibble
+                                     )
+                    ) %>%
+      dplyr::select(-dend) %>%
+      tidyr::unnest(clusters) %>%
+      tidyr::pivot_longer(2:ncol(.),names_to = "groups",values_to ="clust") %>%
+      dplyr::mutate(groups = as.integer(groups)) %>%
+      tidyr::nest(clusters = c(clust)) %>%
+      dplyr::mutate(clusters = future_map(clusters
+                                          , . %>%
+                                            dplyr::mutate(!!ensym(siteCol) := siteNames
+                                                          , cluster = numbers2words(clust)
+                                                          , cluster = fct_reorder(cluster,clust)
+                                                          )
+                                          )
+                    )
+    
+  }
+  
+  
+  clustering_summarise <- function(clustDf,groupName="clust") {
+    
+    clust <- clustDf %>% dplyr::select(all_of(groupName))
+    
+    tab <- table(clust)
+    
+    tibble(nSites = nrow(clust)
+           , nClusters = length(tab)
+           , minClustSize = min(tab)
+           , avClustSize = mean(tab)
+           , maxClustSize = max(tab)
+           )
+    
+  }
+  
+  
+  clustering_explore <- function(clusters)
+    
+    
+    
+  
+
+  # Make a cluster data frame (now prefer to use make_clusters)
   make_cluster_df <- function(rawClusters,siteIDsDf) {
     
     siteIDsDf %>%
@@ -15,25 +93,7 @@
   }
   
 
-  clustering_summarise <- function(df,groupName="clust",smallest = minClust) {
-    
-    clust <- df %>% dplyr::select(all_of(groupName))
-    
-    tab <- table(clust)
-    
-    tibble(nSites = nrow(clust)
-           , nClusters = length(tab)
-           , minClustSize = min(tab)
-           , avClustSize = mean(tab)
-           , maxClustSize = max(tab)
-           , nClustNotSmall = sum(tab >= smallest)
-           , nSiteNotSmall = sum(tab[tab >= smallest])
-           ) %>%
-      dplyr::mutate(propClusterNotSmall = nClustNotSmall/nClusters
-                    , propSitesNotSmall = nSiteNotSmall/nSites
-                    )
-    
-  }
+  
   
   make_sil <- function(clustDf, distObj = datDist, clustID = "clust"){
     
