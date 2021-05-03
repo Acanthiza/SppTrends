@@ -15,16 +15,6 @@
       cooccur::cooccur(spp_names = TRUE,thresh = FALSE)
     
   }
- 
-   make_pairs <- function(cooccur) {
-     
-     res <- tibble(Taxa = cooccur$spp_key$spp) %>%
-       dplyr::mutate(pair = map(Taxa,~cooccur::pair(cooccur,.))) %>%
-       tidyr::unnest(cols = c(pair)) %>%
-       dplyr::filter(p_lt > 0.05)
-     
-   }
-  
   
 
 #-------

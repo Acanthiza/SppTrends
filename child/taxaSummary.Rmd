@@ -2,10 +2,22 @@
 
   summariseTaxa <- "{{thisTaxa}}"
 
+  thisTaxaData <- datTidy %>%
+    dplyr::mutate(thisTaxa = gsub(" ","",Taxa)) %>%
+    dplyr::filter(thisTaxa == summariseTaxa)
+  
+  thisTaxaCooccur <- sppCooccur %>%
+    dplyr::mutate(thisTaxa = gsub(" ","",Taxa)) %>%
+    dplyr::filter(thisTaxa == summariseTaxa)
+
   thisTaxaMods <- taxaMods %>%
     dplyr::mutate(thisTaxa = gsub(" ","",Taxa)) %>%
     dplyr::filter(thisTaxa == summariseTaxa) %>%
     dplyr::mutate(modLoop = paste0(thisTaxa,gsub(" ","",type)))
+  
+  thisTaxaRed <- red %>%
+    dplyr::mutate(thisTaxa = gsub(" ","",Taxa)) %>%
+    dplyr::filter(thisTaxa == summariseTaxa)
 
   taxa <- thisTaxaMods$Taxa[[1]]
 
@@ -14,6 +26,43 @@
 ```
 
 ## _`r taxa`_: `r common`
+
+### Summary
+
+_`r taxa`_ had `r format(nrow(thisTaxaData),big.mark = ",")` records in the tidied data set across `r n_distinct(thisTaxaData$geo1) %>% numbers2words()` IBRA Regions (`r unique(thisTaxaData$geo1) %>% vec_to_sentence`) and `r n_distinct(thisTaxaData$geo2) %>% numbers2words()` IBRA Subregions (`r unique(thisTaxaData$geo2) %>% vec_to_sentence`). Figure \@ref(fig:map{{thisTaxa}}) shows the distribution of records for `r taxa`.
+
+Using ICUN Red List methods, implemented via the `aoo` and `eoo` functions in the `red` package `r cite_package("red")`, the area of occupancy ([aoo](https://www.biodiversitya-z.org/content/species-area-of-occupancy-aoo).)) of _`r taxa`_ within the area of interest (`r aoiName`) was `r thisTaxaRed$aoo` km^2^ and the extent of occurrence ([eoo](https://www.biodiversitya-z.org/content/species-extent-of-occurrence-eoo)) was `r thisTaxaRed$eoo` km^2^.
+
+<br>
+
+```{r map{{thisTaxa}}, fig.cap = paste0("Map of records of _",taxa,"_")}
+
+  mapRecords <- thisTaxaData %>%
+    st_as_sf(coords = c("LONGITUDE","LATITUDE")
+             , crs = 4283
+             ) %>%
+    st_transform(crs = 3577)
+
+  tm_shape(LSA
+           , bbox = st_bbox(mapRecords %>%
+                              st_buffer(50)
+                            )
+           ) +
+    tm_polygons(col = "REGION"
+                , palette = lsaPalette
+                ) +
+  tm_shape(mapRecords) +
+    tm_dots(col = "year"
+            , size = 0.5
+            ) +
+  tm_layout(legend.format=list(fun=function(x) formatC(x, digits=0, format="d"))
+            , legend.outside = TRUE
+            , legend.outside.position = "left"
+            )
+
+```
+
+### Models
 
 ```{r taxaModelPrep{{thisTaxa}}, include=FALSE}
 

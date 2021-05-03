@@ -162,6 +162,7 @@
                        ,"ggridges"
                        ,"parallelDist"
                        ,"ubms"
+                       ,"red"
                        )
                      )
   
@@ -333,13 +334,15 @@
     st_as_sf() %>%
     st_transform(crs = 3577)
 
-  polyPalette <- luPolys %>%
+  lsaPalette <- luPolys %>%
     dplyr::mutate(colour = rgb(R,G,B,A,maxColorValue = 255)) %>%
     dplyr::pull(colour, name = "REGION")
   
   # IBRA Sub
   ibraSub <- st_read("shp/LANDSCAPE_IbraSubregionAust70.shp") %>%
-    st_transform(crs = 3577)
+    st_transform(crs = 3577) %>%
+    sf::st_make_valid() %>%
+    st_intersection(sa)
   
   luGeo <- ibraSub %>%
     st_set_geometry(NULL) %>%

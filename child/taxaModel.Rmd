@@ -12,7 +12,7 @@
 
 ```
 
-### `r modType`
+#### `r modType`
 
 ```{r data{{thisMod}}}
 

@@ -19,11 +19,9 @@
                        dplyr::distinct(!!ensym(taxGroup)
                                       , geo2
                                       ) %>%
-                       dplyr::inner_join(contextCooccur) %>%
-                       tidyr::unnest(cols = c(pair)) %>%
-                       dplyr::select(where(negate(is.list))) %>%
+                       dplyr::inner_join(sppCooccur) %>%
                        dplyr::rename(indicatesAbsence = Taxa
-                                     , Taxa = sp2
+                                     , Taxa = sp2_name
                                      ) %>%
                        dplyr::inner_join(datFiltered) %>%
                        dplyr::mutate(p = 0) %>%

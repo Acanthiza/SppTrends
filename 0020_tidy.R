@@ -108,8 +108,14 @@
 
     #dplyr::sample_n(5) %>% # TESTING
 
-    dplyr::mutate(cooccur = future_map(data,make_cooccur)) %>%
-    dplyr::mutate(pair = map(cooccur,make_pairs))
+    dplyr::mutate(cooccur = future_map(data,make_cooccur))
+  
+  sppCooccur <- contextCooccur %>%
+    dplyr::mutate(pair = map(cooccur,"results")) %>%
+    tidyr::unnest(cols = c(pair)) %>%
+    dplyr::select(where(negate(is.list))) %>%
+    dplyr::filter(p_gt < 0.05) %>%
+    dplyr::rename(Taxa = sp1_name)
     
   
   #------datTidy--------
