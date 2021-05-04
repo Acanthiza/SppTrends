@@ -5,7 +5,9 @@
     tidyr::unnest(cols = c(data)) %>%
     dplyr::mutate(yearDiffDfPath = map_chr(modPath,~gsub("Mod","YearDif",.))
                   , yearDiffDfPath = map_chr(yearDiffDfPath,~gsub("rds","feather",.))
-                  )
+                  , type = fct_relevel(type,"Reporting rate","List length")
+                  ) %>%
+    dplyr::arrange(!!ensym(taxGroup),Taxa,type)
   
   taxaModsOverall <- taxaMods %>%
     dplyr::mutate(yearDiffDfDo = map_lgl(yearDiffDfPath,file.exists)) %>%

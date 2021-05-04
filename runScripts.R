@@ -1,5 +1,5 @@
 
-  outName <- "2021-04-30-1134_Flinders Lofty Block"
+  outName <- "new"
     
   library(magrittr)
   
@@ -13,7 +13,7 @@
   
   getNewData <- FALSE
   
-  runReason <- paste0("Added taxa summary to Rmd, including aoo and eoo via red package. Testing = ",testing,".")
+  runReason <- paste0("GBIF records now left as retrieved rather than just 'Genus species'. Testing = ",testing,".")
   
   dir() %>%
     grep("^\\d{4}_.*\\.R$",.,value=TRUE) %>%

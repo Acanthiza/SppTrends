@@ -40,7 +40,7 @@
     taxaGBIF <- rawGBIF %>%
       as_tibble() %>%
       dplyr::mutate(date = ymd(gsub("T00:00:00","",eventDate))
-                    , SPECIES = str_extract(scientificName,"[[:alpha:]]+\\s[[:alpha:]]+")
+                    , SPECIES = scientificName
                     , year = as.numeric(substr(eventDate,1,4))
                     , month = as.numeric(substr(eventDate,6,7))
                     , yday = yday(date)

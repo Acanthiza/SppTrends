@@ -29,9 +29,11 @@
 
 ### Summary
 
-_`r taxa`_ had `r format(nrow(thisTaxaData),big.mark = ",")` records in the tidied data set across `r n_distinct(thisTaxaData$geo1) %>% numbers2words()` IBRA Regions (`r unique(thisTaxaData$geo1) %>% vec_to_sentence`) and `r n_distinct(thisTaxaData$geo2) %>% numbers2words()` IBRA Subregions (`r unique(thisTaxaData$geo2) %>% vec_to_sentence`). Figure \@ref(fig:map{{thisTaxa}}) shows the distribution of records for `r taxa`.
+_`r taxa`_ had `r format(nrow(thisTaxaData),big.mark = ",")` records in the tidied data set across `r n_distinct(thisTaxaData$geo1) %>% numbers2words()` IBRA Regions (`r unique(thisTaxaData$geo1) %>% vec_to_sentence`) and `r n_distinct(thisTaxaData$geo2) %>% numbers2words()` IBRA Subregions (`r unique(thisTaxaData$geo2) %>% vec_to_sentence`). Figure \@ref(fig:map{{thisTaxa}}) shows the distribution of records for _`r taxa`_.
 
-Using ICUN Red List methods, implemented via the `aoo` and `eoo` functions in the `red` package `r cite_package("red")`, the area of occupancy ([aoo](https://www.biodiversitya-z.org/content/species-area-of-occupancy-aoo).)) of _`r taxa`_ within the area of interest (`r aoiName`) was `r thisTaxaRed$aoo` km^2^ and the extent of occurrence ([eoo](https://www.biodiversitya-z.org/content/species-extent-of-occurrence-eoo)) was `r thisTaxaRed$eoo` km^2^.
+Using ICUN Red List methods, implemented via the `aoo` and `eoo` functions in the `red` package `r cite_package("red")`, the area of occupancy ([aoo](https://www.biodiversitya-z.org/content/species-area-of-occupancy-aoo)) of _`r taxa`_ within the area of interest (`r aoiName`) was `r thisTaxaRed$aoo` km^2^ and the extent of occurrence ([eoo](https://www.biodiversitya-z.org/content/species-extent-of-occurrence-eoo)) was `r thisTaxaRed$eoo` km^2^.
+
+Taxa that were more likely to cooccur with _`r taxa`_, than could be expected by chance, are shown in Table \@ref(tab:taxaCooccur{{thisTaxa}}).
 
 <br>
 
@@ -48,12 +50,12 @@ Using ICUN Red List methods, implemented via the `aoo` and `eoo` functions in th
                               st_buffer(50)
                             )
            ) +
-    tm_polygons(col = "REGION"
+    tm_fill(col = "LSARegion"
                 , palette = lsaPalette
                 ) +
   tm_shape(mapRecords) +
     tm_dots(col = "year"
-            , size = 0.5
+            , palette = "viridis"
             ) +
   tm_layout(legend.format=list(fun=function(x) formatC(x, digits=0, format="d"))
             , legend.outside = TRUE
@@ -61,6 +63,26 @@ Using ICUN Red List methods, implemented via the `aoo` and `eoo` functions in th
             )
 
 ```
+
+<br>
+
+```{r taxaCooccur{{thisTaxa}}}
+
+  kable(thisTaxaCooccur %>%
+          dplyr::select(`IBRA Region` = geo1
+                        , `IBRA Subregion` = geo2
+                        , `Cooccuring taxa` = sp2_name
+                        , "_{taxa}_ records" := sp1_inc
+                        , `Other taxa records` = sp2_inc
+                        , `Cooccuring records` = obs_cooccur
+                        , p = p_gt
+                        )
+        , caption = paste0("Taxa in each IBRA Subregion that cooccured with _",taxa,"_ more than could be expected by chance")
+        )
+
+```
+
+<br>
 
 ### Models
 

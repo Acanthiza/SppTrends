@@ -1261,39 +1261,26 @@ ah2sp <- function(x, increment=360, rnd=10, proj4string=CRS(as.character(NA)),to
     sppCol <- if(is.character(sppCol)) sppCol else names(df)[sppCol]
     idCol <- if(is.character(idCol)) idCol else names(df)[idCol]
     
-    dat <- if(file.exists(outFile)) {
-      
-      df %>%
-        dplyr::mutate(Species = !!ensym(sppCol)
-                      , id = !!ensym(idCol)
-        ) %>%
-        dplyr::anti_join(read_feather(outFile) %>%
-                           dplyr::filter(!is.na(key))
-                         , by = "id"
-        ) %>%
-        dplyr::arrange(Species)
-      
-    } else if (file.exists(paste0(gsub(".feather","",outFile),"_temp.feather"))) {
-      
-      df %>%
-        dplyr::mutate(Species = !!ensym(sppCol)
-                      , id = !!ensym(idCol)
-        ) %>%
-        dplyr::anti_join(read_feather(paste0(gsub(".feather","",outFile),"_temp.feather"))) %>%
-        dplyr::arrange(Species)
-      
-    } else {
-      
-      df %>%
-        dplyr::mutate(Species = !!ensym(sppCol)
-                      , id = !!ensym(idCol)
-        ) %>%
-        dplyr::arrange(Species)
-      
-    }
+    alreadyDone01 <- if(file.exists(outFile)) read_feather(outFile)
+    
+    alreadyDone02 <- if(file.exists(paste0(gsub(".feather","",outFile),"_temp.feather"))) read_feather(paste0(gsub(".feather","",outFile),"_temp.feather"))
+    
+    toCheck <- df %>%
+      dplyr::mutate(originalName = !!ensym(sppCol)
+                    , Species = !!ensym(sppCol)
+                    , id = !!ensym(idCol)
+                    ) %>%
+      dplyr::arrange(Species)
+    
+    dat <- dplyr::bind_rows(get0("alreadyDone01"),get0("alreadyDone02"),get0("toCheck")) %>%
+      dplyr::distinct(Taxa,originalName)
     
     taxa <- dat %>%
-      dplyr::pull(Species) %>%
+      dplyr::filter(is.na(Taxa)
+                    , !grepl("BOLD:.*\\d{4}",originalName)
+                    , !is.na(originalName)
+                    ) %>%
+      dplyr::pull(originalName) %>%
       gsub("dead|\\s*\\(.*\\)|\\'|\\?| spp\\.| sp\\.|#|\\s^","",.) %>%
       gsub(" x .*$| X .*$","",.) %>%
       str_squish()

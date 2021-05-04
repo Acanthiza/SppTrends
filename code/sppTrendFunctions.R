@@ -564,7 +564,9 @@
                     )
     
     res$yearDiffText <- paste0(
-      Taxa
+      "_"
+      , Taxa
+      , "_"
       , if(!is.null(Common)) paste0(" (",Common,")")
       , " was "
       , res$yearDiffOverallRes$text

@@ -388,7 +388,7 @@
                                   )
                      )
   
-  tmap::tmap_mode("view")
+  tmap::tmap_mode("plot")
   
   
   # Scientific notation?
