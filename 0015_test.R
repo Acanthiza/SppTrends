@@ -9,22 +9,22 @@ if(testing) {
               # , "Anseriformes"
               # , "Charadriiformes"
               # , "Accipitriformes"
-              # , "Diprotodontia"
+              , "Diprotodontia"
               )
   
   genera <- c(NULL
-              , "Melithreptus"
-              , "Pandion"
-              , "Haliaeetus"
-              , "Cacatua"
-              , "Myiagra"
-              , "Pseudonaja"
-              , "Pogona"
-              , "Vespadelus"
-              , "Macropus"
-              , "Pachycephala"
-              , "Phylidonyris"
-              , "Climacteris"
+              # , "Melithreptus"
+              # , "Pandion"
+              # , "Haliaeetus"
+              # , "Cacatua"
+              # , "Myiagra"
+              # , "Pseudonaja"
+              # , "Pogona"
+              # , "Vespadelus"
+              # , "Macropus"
+              # , "Pachycephala"
+              # , "Phylidonyris"
+              # , "Climacteris"
               )
   
   
