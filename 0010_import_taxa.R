@@ -89,12 +89,17 @@
     dplyr::mutate(SPECIES = gsub("\\s"," ",SPECIES))
   
   
-  
   #-------Taxonomy------
+  
   taxaAll %>%
     dplyr::distinct(SPECIES) %>%
+    dplyr::arrange(SPECIES) %>%
     #dplyr::sample_n(30) %>% # FOR TESTING ONLY
-    gbif_tax(1,1,path("data","luGBIF.feather"),"Animalia")
+    gbif_tax(1
+             ,path("data","luGBIF.feather")
+             ,"Animalia"
+             ,getCommon = TRUE
+             )
   
   luGBIF <- read_feather(path("data","luGBIF.feather")) %>%
     dplyr::mutate(TaxaGBIF = Taxa
@@ -111,11 +116,13 @@
                   )
   
   luTax <- luGBIF %>%
-    dplyr::distinct(Taxa,Kingdom,Phylum,Class,Order,Family,Genus) %>%
-    dplyr::left_join(luGBIF %>%
-                       dplyr::distinct(Taxa,Common) %>%
-                       dplyr::filter(!is.na(Common))
-                     )
+    dplyr::distinct(Taxa,Kingdom,Phylum,Class,Order,Family,Genus,Species) %>%
+    na.omit() %>%
+    # dplyr::left_join(luGBIF %>%
+    #                    dplyr::distinct(Taxa,Common) %>%
+    #                    dplyr::filter(Common != "")
+    #                  ) %>%
+    dplyr::add_count(Taxa) %>% dplyr::filter(n > 1) %>% dplyr::arrange(Taxa)
   
   luInd <- taxaBDBSA %>%
     dplyr::left_join(luGBIF, by = c("SPECIES" = "id")) %>%
