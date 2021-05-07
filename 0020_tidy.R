@@ -40,7 +40,7 @@
   #-------Taxonomy-------
   
   taxaAllDatesAOITax <- taxaAllDatesAOI %>%
-    dplyr::left_join(luGBIF[,c("id","Taxa","Rank")], by = c("SPECIES" = "id")) %>%
+    dplyr::left_join(luGBIF[,c("Taxa","Rank","originalName")], by = c("SPECIES" = "originalName")) %>%
     dplyr::filter(Rank > "Genus") %>%
     dplyr::count(Taxa,LATITUDE,LONGITUDE,date,year,month,yday,quart,yearmon,name="siteRecords") %>%
     dplyr::left_join(luTax) %>%

@@ -46,13 +46,13 @@
   geo2 <- "IBRA_SUB_N"
   
   # Taxonomic grouping
-  taxGroup <- "Class"
+  taxGroup <- "class"
   
   # Length of one side of grid in metres
   innerGrid <- 1000
   outerGrid <- 10*innerGrid
   
-  minYear <- 1985 #lubridate::year(Sys.time()) - 30
+  minYear <- 1990 #lubridate::year(Sys.time()) - 30
   
   quantProbs <- c(0.05, 0.5, 0.95)
   

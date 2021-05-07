@@ -103,6 +103,7 @@
   
   luGBIF <- read_feather(path("data","luGBIF.feather")) %>%
     dplyr::mutate(TaxaGBIF = Taxa
+                  , Rank = rank
                   , Rank = str_to_sentence(Rank)
                   , Rank = gsub("Division","Phylum",Rank)
                   , Rank = fct_expand(Rank,"Class","Order")
@@ -116,16 +117,12 @@
                   )
   
   luTax <- luGBIF %>%
-    dplyr::distinct(Taxa,Kingdom,Phylum,Class,Order,Family,Genus,Species) %>%
+    dplyr::distinct(Taxa,kingdom,phylum,class,order,family,genus,species,Common) %>%
     na.omit() %>%
-    # dplyr::left_join(luGBIF %>%
-    #                    dplyr::distinct(Taxa,Common) %>%
-    #                    dplyr::filter(Common != "")
-    #                  ) %>%
-    dplyr::add_count(Taxa) %>% dplyr::filter(n > 1) %>% dplyr::arrange(Taxa)
+    dplyr::arrange(Taxa)
   
   luInd <- taxaBDBSA %>%
-    dplyr::left_join(luGBIF, by = c("SPECIES" = "id")) %>%
+    dplyr::left_join(luGBIF, by = c("SPECIES" = "originalName")) %>%
     dplyr::filter(!is.na(Taxa)) %>%
     dplyr::count(Taxa,ISINDIGENOUSFLAG) %>%
     dplyr::mutate(ISINDIGENOUS = if_else(is.na(ISINDIGENOUSFLAG),"Y","N")) %>%

@@ -34,7 +34,7 @@ For _`r taxa`_, `r paste0("in ",recent, " compared with ", reference)`, `r modTy
 
 ```{r modFig{{thisMod}}, fig.height = 8, fig.width = 7, fig.cap = paste0("Reporting rate for _",taxa,"_")}
 
-  thisMod$res[[1]]$plotRibbon
+  thisMod$res[[1]]$plotLine
 
 ```
 

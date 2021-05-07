@@ -1305,19 +1305,26 @@ ah2sp <- function(x, increment=360, rnd=10, proj4string=CRS(as.character(NA)),to
       dplyr::filter(!grepl("BOLD:.*\\d{4}",originalName)
                     , !is.na(originalName)
                     ) %>%
-      dplyr::mutate(taxa = gsub("dead|\\'|\\?| spp\\.| sp\\.|#|\\s^","",originalName)
-                    , taxa = gsub(" x .*$| X .*$","",taxa)
-                    , taxa = str_squish(taxa)
+      dplyr::mutate(searchedName = gsub("dead|\\s*\\(.*\\).*|\\'|\\?| spp\\.| sp\\.| ssp\\.| var\\.| ex| [A-Z].*|#|\\s^"
+                                ,""
+                                ,originalName
+                                )
+                    , searchedName = gsub(" x .*$| X .*$","",searchedName)
+                    , searchedName = gsub("\\s{2,}"," ",searchedName)
+                    , searchedName = str_squish(searchedName)
                     )
     
-    if(length(taxa$taxa)>0){
+    taxas <- taxa %>%
+      dplyr::distinct(searchedName)
+    
+    if(length(taxas$searchedName)>0){
       
-      for (i in 1:length(taxa$taxa)){
+      for (i in taxas$searchedName){
         
-        print(taxa$taxa[i])
+        print(i)
         
-        taxGBIF <- name_backbone(taxa$taxa[i], kingdom = kingType) %>%
-          dplyr::mutate(originalName = taxa$originalName[i])
+        taxGBIF <- name_backbone(i, kingdom = kingType) %>%
+          dplyr::mutate(searchedName = i)
         
         taxGBIF <- if(sum(grepl("acceptedUsageKey",names(taxGBIF)))>0) {
           
@@ -1326,7 +1333,7 @@ ah2sp <- function(x, increment=360, rnd=10, proj4string=CRS(as.character(NA)),to
             dplyr::rename(usageKey = key
                           , status = taxonomicStatus
                           ) %>%
-            dplyr::mutate(originalName = taxa$originalName[i])
+            dplyr::mutate(searchedName = i)
           
         } else {
           
@@ -1350,16 +1357,21 @@ ah2sp <- function(x, increment=360, rnd=10, proj4string=CRS(as.character(NA)),to
         
         taxGBIF$Stamp <- Sys.time()
         
+        taxGBIF <- taxa %>%
+          dplyr::inner_join(taxGBIF)
+        
         if(file.exists(tmpFile)) {
           
           write_feather(taxGBIF %>%
-                          dplyr::bind_rows(read_feather(tmpFile))
+                          dplyr::bind_rows(read_feather(tmpFile)) %>%
+                          dplyr::select(1,2,Taxa,everything())
                         , paste0(gsub(".feather","",outFile),"_temp.feather")
                         )
           
         } else {
           
-          write_feather(taxGBIF
+          write_feather(taxGBIF %>%
+                          dplyr::select(1,2,Taxa,everything())
                         , paste0(gsub(".feather","",outFile),"_temp.feather")
                         )
           

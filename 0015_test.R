@@ -9,7 +9,7 @@ if(testing) {
               # , "Anseriformes"
               # , "Charadriiformes"
               # , "Accipitriformes"
-              , "Diprotodontia"
+              # , "Diprotodontia"
               )
   
   genera <- c(NULL
@@ -51,10 +51,10 @@ if(testing) {
   
     
   testOrder <- luTax %>%
-    dplyr::filter(Order %in% orders)
+    dplyr::filter(order %in% orders)
   
   testGenus <- luTax %>%
-    dplyr::filter(Genus %in% genera)
+    dplyr::filter(genus %in% genera)
   
   testSpp <- luTax %>%
     dplyr::filter(Taxa %in% spp)

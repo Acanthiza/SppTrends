@@ -13,7 +13,7 @@
   
   getNewData <- FALSE
   
-  runReason <- paste0("GBIF taxonomy returned in full, rather than selected columns. Testing = ",testing,".")
+  runReason <- paste0("Test workflow after changes. Testing = ",testing,".")
   
   dir() %>%
     grep("^\\d{4}_.*\\.R$",.,value=TRUE) %>%
