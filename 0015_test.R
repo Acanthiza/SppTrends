@@ -28,15 +28,15 @@ if(testing) {
               )
   
   
-  # kiSpp <- read_csv(path("data","kiSpp.csv")
-  #                   , col_names = FALSE
-  #                   ) %>%
-  #   dplyr::mutate(X1 = gsub("\\s"," ",X1)) %>%
-  #   tidyr::separate(X1,into = c("genus","species")) %>%
-  #   dplyr::mutate(spp = paste0(genus," ",species)) %>%
-  #   dplyr::distinct(spp) %>%
-  #   dplyr::arrange(spp) %>%
-  #   dplyr::pull(spp)
+  kiSpp <- read_csv(path("data","kiSpp.csv")
+                    , col_names = FALSE
+                    ) %>%
+    dplyr::mutate(X1 = gsub("\\s"," ",X1)) %>%
+    tidyr::separate(X1,into = c("genus","species")) %>%
+    dplyr::mutate(spp = paste0(genus," ",species)) %>%
+    dplyr::distinct(spp) %>%
+    dplyr::arrange(spp) %>%
+    dplyr::pull(spp)
   
   
   spp <- c(NULL
@@ -46,7 +46,7 @@ if(testing) {
   
   
   spp <- c(spp
-           #,kiSpp
+           ,kiSpp
            )
   
     

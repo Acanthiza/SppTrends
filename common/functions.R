@@ -1,4 +1,6 @@
 
+
+
 #------Clustering---------
 
   make_clusters <- function(data
@@ -1305,7 +1307,7 @@ ah2sp <- function(x, increment=360, rnd=10, proj4string=CRS(as.character(NA)),to
       dplyr::filter(!grepl("BOLD:.*\\d{4}",originalName)
                     , !is.na(originalName)
                     ) %>%
-      dplyr::mutate(searchedName = gsub("dead|\\s*\\(.*\\).*|\\'|\\?| spp\\.| sp\\.| ssp\\.| var\\.| ex| [A-Z].*|#|\\s^"
+      dplyr::mutate(searchedName = gsub("dead |\\s*\\(.*\\).*|\\'|\\?| spp\\.| sp\\.| ssp\\.| var\\.| ex| [A-Z].*|#|\\s^"
                                 ,""
                                 ,originalName
                                 )
@@ -1315,7 +1317,8 @@ ah2sp <- function(x, increment=360, rnd=10, proj4string=CRS(as.character(NA)),to
                     )
     
     taxas <- taxa %>%
-      dplyr::distinct(searchedName)
+      dplyr::distinct(searchedName) %>%
+      dplyr::arrange(searchedName)
     
     if(length(taxas$searchedName)>0){
       
