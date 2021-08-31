@@ -1,4 +1,359 @@
 
+#-------System---------
+
+  # https://stackoverflow.com/questions/27788968/how-would-one-check-the-system-memory-available-using-r-on-a-windows-machine
+
+  prop_mem <- function() {
+    
+    total <- parse_number(paste0(system2("wmic", args =  "OS get TotalVirtualMemorySize /Value", stdout = TRUE),collapse = "_"))
+    free <- parse_number(paste0(system2("wmic", args =  "OS get FreeVirtualMemory /Value", stdout = TRUE),collapse = "_"))
+    
+    (total-free)/total
+    
+  }
+  
+  prop_CPU <- function() {
+    
+    a <- system("wmic path Win32_PerfFormattedData_PerfProc_Process get Name,PercentProcessorTime", intern = TRUE)
+    df <- as_tibble(do.call(rbind, lapply(strsplit(a, " "), function(x) {x <- x[x != ""];data.frame(process = x[1], cpu = x[2])}))) %>%
+      dplyr::mutate(cpu = as.numeric(cpu))
+    
+    sum(df$cpu[!grepl("Idle|Total",df$process)],na.rm = TRUE)/(df %>% dplyr::filter(grepl("Total",process)) %>% dplyr::pull(cpu))
+    
+  }
+
+
+#----------Raster----------
+
+  # from https://github.com/m-saenger/geomorphon/blob/master/geomorphon.R
+
+  ##' ...............................................................................
+  ##'  Landform Classification after Jasiewicz and Stepinkski (2013) 
+  ##' ...............................................................................
+  ##'  M. Sänger  10/2019
+  ##' ...............................................................................
+  ##' 
+  ##' Raster data to be on equally spaced grid (e.g. km)
+  ##' Output very sensitive to flatness threshold
+  ##' Function not optmised for performance - run time very long for large data sets
+  
+  geomorph.def <- data.frame(
+    num_lf = 1:10,
+    id_lf = c("PK", "RI", "SH", "SP", "SL", "FS", "FL", "HL", "VL", "PT"),
+    name_en = c("Peak", "Ridge", "Shoulder", "Spur", "Slope", "Footslope", "Flat", "Hollow", "Valley", "Pit"),
+    colour = c("magenta", "red", "orange", "yellow", "grey40",  "grey70", "grey90", "skyblue1", "dodgerblue", "royalblue3"),
+    stringsAsFactors = F
+  )
+  
+  geomorph.lut <- data.frame(
+    V0 = c("FL", "FL", "FL", "SH", "SH", "RI", "RI", "RI", "PK"),
+    V1 = c("FL", "FL", "SH", "SH", "SH", "RI", "RI", "RI", NA),
+    V2 = c("FL", "FS", "SL", "SL", "SP", "SP", "RI", NA, NA),
+    V3 = c("FS", "FS", "SL", "SL", "SL", "SP", NA, NA, NA),
+    V4 = c("FS", "FS", "HL", "SL", "SL", NA, NA, NA, NA),
+    V5 = c("VL", "VL", "HL", "HL", NA, NA, NA, NA, NA),
+    V6 = c("VL", "VL", "VL", NA, NA, NA, NA, NA, NA),
+    V7 = c("VL", "VL", NA, NA, NA, NA, NA, NA, NA),
+    V8 = c("PT", NA, NA, NA, NA, NA, NA, NA, NA)
+  )
+  geomorph.lut <- as.matrix(geomorph.lut)
+  geomorph.lut.num <- matrix(match(geomorph.lut, geomorph.def$id_lf), nrow = nrow(geomorph.lut)) 
+  
+  geomorph <- function(x, flatness.thresh = NA, res = NA, geomorph.lut.num, verbose = F){
+    #' @description Note, that no performance optimisation has been done to this function, yet.
+    #' @author M. Sänger 2018
+    #' @source Jasiewicz, Stepinkski 2013
+    #' @param x vector from raster::focal function
+    #' @param flatness.thresh Flatness threshold in degrees
+    #' @param res resolution, same unit as values in r
+    #' @param geomorph.lut.num look-up table to derive landform class from ternary patterns
+    
+    
+    # Breaks for flatness threshold
+    brks <- c(-Inf, -flatness.thresh, flatness.thresh, Inf)
+    brks.ind <- c(-1, 0, 1)
+    
+    # Create matrix from incoming vector x
+    size = sqrt(length(x))
+    m <- matrix(x, nrow = size)
+    
+    # Distance from central point to edge (number of cells)
+    mid <- ceiling(size/2)
+    
+    # Matrix of all vectors from the central point to the octants
+    oct <- rbind(
+      ne = cbind(mid:size, mid:size),
+      e = cbind(mid:size, mid),
+      se = cbind(mid:size, mid:1),
+      s = cbind(mid, mid:1),
+      sw = cbind(mid:1, mid:1),
+      w = cbind(mid:1, mid),
+      nw = cbind(mid:1, mid:size),
+      n = cbind(mid, mid:size)
+    )
+    
+    # Coordinates and cell distance (sqrt(2) for diagonals)
+    oct.vector <- m[oct]
+    cell.scaling <- rep(c(sqrt(2), 1), 4) # Horizontal cell distance in all 8 directions
+    cell.size <- res * cell.scaling
+    
+    # Matrix octants vs. cell values
+    m1 <- matrix(oct.vector, nrow = 8, byrow = T)
+    
+    # z diff from central point
+    m.diff <-  m1[, -1] - m1[, 1]
+    
+    # Calculate slope angle and transform to degrees
+    m.slope <- atan(m.diff/(cell.size * 1:ncol(m.diff)))
+    m.angle <- m.slope * 180/pi
+    
+    # Calculate zenith and nadir angles for each octant
+    nadir <- 90 + apply(m.angle, 1, min, na.rm = T)
+    zenith <- 90 - apply(m.angle, 1, max, na.rm = T)
+    
+    # Derive ternary pattern
+    ternary.pattern <- brks.ind[findInterval(nadir - zenith, brks)]
+    
+    plus.ind <- length(which(ternary.pattern == 1))
+    neg.ind <- length(which(ternary.pattern == -1))
+    
+    # Look up ternarity pattern and assign landform class
+    geomorph.lut.num[neg.ind + 1, plus.ind + 1]
+    
+  }
+  
+  # Apply focal function
+  geomorph_ras <- function(ras, outFile = NULL, doNew = TRUE) {
+    
+    saveFile <- if(is.null(outFile)) {
+      
+      path("out",paste0(names(ras),"_geomorph",".tif"))
+      
+    } else outFile
+    
+    if(!doNew) if(!file.exists(saveFile)) doNew <- TRUE
+    
+    if(doNew) {
+      
+      res <- raster::focal(ras
+                           , w = focalWindow
+                           , fun = function(x) geomorph(x
+                                                        , flatnessThresh
+                                                        , res = raster::res(ras)
+                                                        , geomorph.lut.num
+                                                        )
+                           , pad = T
+                           , padValue = NA
+                           )
+      
+      rgdal::writeGDAL(as(res, "SpatialGridDataFrame")
+                       , saveFile
+                       , type = "Byte"
+                       , colorTables = list(geomorph.def$colour)
+                       , catNames = list(geomorph.def$name_en)
+                       , mvFlag = if(nrow(geomorph.def) < 256) 255 else 65534
+                       )
+      
+    }
+    
+    raster(saveFile)
+    
+  }
+  
+  # https://rdrr.io/github/gianmarcoalberti/GmAMisc/src/R/landfClass.R
+  # Function seemed to disappear from GmAMisc package between 1.1.0 and 1.1.1
+
+  #' R function for landform classification on the basis on Topographic Position Index
+  #'
+  #' The function allows to perform landform classification on the basis of the Topographic Position Index calculated from an input Digital Terrain Model (RasterLayer class).
+  #'
+  #' The TPI is the difference between the elevation of a given cell and the average elevation of the surrounding cells in a user defined moving window.
+  #' For landform classification, the TPI is first standardized and then thresholded; to isolate certain classes, a slope raster (which is internally worked out) is also needed.\cr
+  #' For details about the implemented classification, see: http://www.jennessent.com/downloads/tpi_documentation_online.pdf.\cr
+  #'
+  #' Two methods are available:\cr
+  #' -the first (devised by Weiss) produces a 6-class landform classification comprising
+  #' -- valley\cr
+  #' -- lower slope\cr
+  #' -- flat slope\cr
+  #' -- middle slope\cr
+  #' -- upper clope\cr
+  #' -- ridge\cr
+  #' -the second (devised by Jennes) produces a 10-class classification comprising
+  #' -- canyons, deeply incised streams\cr
+  #' -- midslope drainages, shallow valleys\cr
+  #' -- upland drainages, headwaters\cr
+  #' -- u-shaped valleys\cr
+  #' -- plains\cr
+  #' -- open slopes\cr
+  #' -- upper slopes, mesas\cr
+  #' -- local ridges, hills in valleys\cr
+  #' -- midslope ridges, small hills\cr
+  #' -- mountain tops, high ridges\cr
+  #' The second classification is based on two TPI that make use of two neighborhoods (moving windows) of different size: a s(mall) n(eighborhood) and a l(arge) n(eighborhood),
+  #' defined by the parameters sn and ln.\cr
+  #'
+  #' Besides rasters representing the different landform classes, the function optionally returns the TPI raster, either un- or standarized.
+  #'
+  #' @param x: input DTM (RasterLayer class).
+  #' @param scale: size (in terms of cells per side) of the neighborhood (moving window) to be used; it must be an odd integer.
+  #' @param sn: if the 10-class classification is selected, this paramenter sets the s(mall) n(eighborhood) to be used.
+  #' @param ln: if the 10-class classification is selected, this paramenter sets the l(arge) n(eighborhood) to be used.
+  #' @param n.classes: "six" or "ten" for a six- or ten-class landform classification.
+  #' @param add.tpi: set to TRUE will return a TPI raster (FALSE is default).
+  #' @param stand.tpi: specifies whether the returned TPI raster will be un- or standardized (FALSE is default).
+  #' @keywords landform
+  #' @export
+  #' @examples
+  #' data(elev) #load the 'elev' raster from the 'raster' package
+  #' landfClass(elev, scale=5, add.tpi=TRUE, stand.tpi=TRUE) #perform the 6-class landform analysis (which is default), and also produce the standardized TPI; a moving window of dimension 5 (in terms of cells per side) is used
+  #' landfClass(elev, sn=5, ln=11, n.classes="ten") #perform the 10-class landform analysis, with a s(mall) n(eighborhood) of size 5 and a l(arge) n(eighborhood) of size 11
+  #'
+  landfClass <- function (x, outFile = NULL, doNew = TRUE, outDir = "out", sn = 3, ln = 7, n.classes="six") {
+    
+    #define the shape of the moving window used by spatialEco::tpi
+    win = "rectangle"
+    
+    #calculate the slope from the input DTM, to be used for either the six or ten class slope position
+    slp <- raster::terrain(x, opt="slope", unit="degrees", neighbors = sn*sn-1)
+    
+    #calculate the tpi using spatialEco::tpi function
+    tp <- spatialEco::tpi(x, scale = sn, win = win)
+    
+    saveFile <- if(is.null(outFile)) path(outDir,paste0(names(x),"_lsc.tif")) else outFile
+    
+    saveFile <- if(n.classes == "six") gsub("\\.tif","_six.tif",saveFile) else gsub("\\.tif","_ten.tif",saveFile)
+    
+    if (n.classes == "six") {
+      
+      if(!doNew) {
+        
+        if(!file.exists(saveFile)) doNew <- TRUE
+        
+      }
+      
+      if(doNew) {
+        
+        topo_six_class <- function(tp,slp) {
+        
+          ifelse(tp <= -1
+                 , 1
+                 , ifelse(tp > -1 & tp <= -0.5
+                          , 2
+                          , ifelse(tp > -0.5 & tp < 0.5 & slp <= 5
+                                   , 3
+                                   , ifelse(tp > -0.5 & tp < 0.5 & slp > 5
+                                            , 4
+                                            , ifelse(tp > 0.5 & tp <= 1
+                                                     , 5
+                                                     , ifelse(tp > 1
+                                                              , 6
+                                                              , NA
+                                                              )
+                                                     )
+                                            )
+                                   )
+                          )
+                 )
+          
+          }
+        
+        s <- stack(tp,slp)
+        
+        res <- overlay(s, fun = topo_six_class, forcefun = TRUE)
+        
+        lscCol <- tibble(id = 1:6
+                        , colour = terrain.colors(6)
+                        , attribute = c("valley","lower slope","flat slope","middle slope","upper slope","ridge")
+                        )
+        
+        rgdal::writeGDAL(as(res, "SpatialGridDataFrame")
+                         , path(saveFile)
+                         , type = if(nrow(lscCol) < 256) "Byte" else"UInt16"
+                         , colorTables = list(lscCol$colour)
+                         , catNames = list(lscCol$attribute)
+                         , mvFlag = if(nrow(lscCol) < 256) 255 else 65534
+                         )
+          
+        }
+      
+    } else {
+      
+      if(!doNew) {
+        
+        if(!file.exists(saveFile)) doNew <- TRUE
+        
+      }
+      
+      if(doNew) {
+      
+        topo_ten_class <- function(sn,ln,slp) {
+          
+          ifelse(sn <= -1 & ln <= -1
+                 , 1
+                 , ifelse(sn <= -1 & ln > -1 & ln < 1
+                          , 2
+                          , ifelse(sn <= -1 & ln >= 1
+                                   , 3
+                                   , ifelse(sn > -1 & sn < 1 & ln <=-1
+                                            , 4
+                                            , ifelse(sn > -1 & sn < 1 & ln > -1 & ln < 1 & slp <= 5
+                                                     , 5
+                                                     , ifelse(sn > -1 & sn < 1 & ln > -1 & ln < 1 & slp > 5
+                                                              , 6
+                                                              , ifelse(sn > -1 & sn < 1 & ln >= 1
+                                                                       , 7
+                                                                      , ifelse(sn >= 1 & ln <= -1
+                                                                               , 8
+                                                                               , ifelse(sn >= 1 & ln > -1 & ln < 1
+                                                                                        , 9
+                                                                                        , ifelse(sn >= 1 & ln >=1
+                                                                                                 , 10
+                                                                                                 , NA
+                                                                                                 )
+                                                                                        )
+                                                                               )
+                                                                       )
+                                                              )
+                                                     )
+                                            )
+                                   )
+                          )
+                 )
+          
+          }
+        
+        #calculate two standardized tpi, one with small neighbour, one with large neighbour
+        sn <- spatialEco::tpi(x, scale=sn, win=win, normalize=TRUE)
+        ln <- spatialEco::tpi(x, scale=ln, win=win, normalize=TRUE)
+        
+        s <- stack(sn,ln,slp)
+        
+        res <- overlay(s, fun = topo_ten_class, forcefun = TRUE)
+        
+        lscCol <- tibble(id = 1:10
+                         , colour = terrain.colors(10)
+                         , attribute = c("canyon","midslope drainage","upland drainage","u-shaped valley","plains"
+                                         , "open slopes", "upper slopes", "local ridges", "midslopes ridges", "mountain tops"
+                                         )
+                         )
+        
+        rgdal::writeGDAL(as(res, "SpatialGridDataFrame")
+                         , path(saveFile)
+                         , type = if(nrow(lscCol) < 256) "Byte" else"UInt16"
+                         , colorTables = list(lscCol$colour)
+                         , catNames = list(lscCol$attribute)
+                         , mvFlag = if(nrow(lscCol) < 256) 255 else 65534
+                         )
+        
+        }
+      
+    }
+    
+    raster(saveFile)
+    
+  }
+
 
 
 #------Clustering---------
@@ -7,6 +362,7 @@
                             ,methodsDf = clustMethod
                             ,sppCol = "Taxa"
                             ,siteCol = "list"
+                            ,numCol = "p"
                             ,groups = possibleGroups[possibleGroups < 0.5*length(unique(data$Taxa))]
                             ,minTaxaCount = 1
                             ) {
@@ -14,16 +370,21 @@
     datWide <- data %>%
       dplyr::add_count(!!ensym(sppCol)) %>%
       dplyr::filter(n > minTaxaCount) %>%
-      dplyr::select(!!ensym(sppCol),!!ensym(siteCol)) %>%
       dplyr::mutate(p = 1) %>%
-      tidyr::pivot_wider(names_from = all_of(sppCol), values_from = "p", values_fill = 0)
+      dplyr::group_by(!!ensym(sppCol),!!ensym(siteCol)) %>%
+      dplyr::summarise(value = sum(!!ensym(numCol),na.rm = TRUE)) %>%
+      dplyr::filter(!is.na(value)) %>%
+      tidyr::pivot_wider(names_from = all_of(sppCol), values_fill = 0) %>%
+      dplyr::arrange(!!ensym(siteCol)) %>%
+      tibble::column_to_rownames(siteCol) %>%
+      as.matrix()
     
-    siteNames <- datWide %>% dplyr::pull(!!ensym(siteCol))
+    siteNames <- rownames(datWide)
     
-    dist <- parDist(datWide %>% tibble::column_to_rownames(siteCol) %>% as.matrix()
-                    , method = "bray"
-                    , threads = useCores
-                    )
+    dist <- parallelDist::parDist(datWide
+                                  , method = "bray"
+                                  , threads = if(exists("useCores")) useCores else 1
+                                  )
     
     assign("sqDist",as.matrix(dist^2),pos = .GlobalEnv)
     
@@ -46,15 +407,7 @@
       tidyr::unnest(clusters) %>%
       tidyr::pivot_longer(2:ncol(.),names_to = "groups",values_to ="clust") %>%
       dplyr::mutate(groups = as.integer(groups)) %>%
-      tidyr::nest(clusters = c(clust)) %>%
-      dplyr::mutate(clusters = future_map(clusters
-                                          , . %>%
-                                            dplyr::mutate(!!ensym(siteCol) := siteNames
-                                                          , cluster = numbers2words(clust)
-                                                          , cluster = fct_reorder(cluster,clust)
-                                                          )
-                                          )
-                    )
+      tidyr::nest(clusters = c(clust))
     
   }
   
@@ -73,13 +426,7 @@
            )
     
   }
-  
-  
-  clustering_explore <- function(clusters)
-    
-    
-    
-  
+   
 
   # Make a cluster data frame (now prefer to use make_clusters)
   make_cluster_df <- function(rawClusters,siteIDsDf) {
@@ -145,7 +492,7 @@
       dplyr::inner_join(dfWithNames) %>%
       .[,colSums(. != 0) > 0]
     
-    labdsv::indval(datForInd[,names(datForInd) %in% names(datWide[,-1])]
+    labdsv::indval(datForInd[,names(datForInd) %in% names(dfWithNames[,-1])]
                    ,datForInd$clust
                    )
     
@@ -182,19 +529,27 @@
   #------Clustering - Diagnostics----------
   
   
-  diagnostic_plot <- function(diagnosticDf,labelDiagnostic = "diagnostic") {
+  diagnostic_plot <- function(diagnosticDf
+                              ,labelDiagnostic = "diagnostic"
+                              ,displayAll = FALSE
+                              ) {
     
-    ggplot(diagnosticDf
+    df <- diagnosticDf %>%
+      {if(displayAll) (.) else (.) %>% dplyr::filter(weight)} %>%
+      dplyr::mutate(across(where(is.factor),factor)) %>%
+      dplyr::filter(!is.na(value))
+    
+    ggplot(df
            ,aes(groups
-                , value
+                , scale
                 , colour = combo
-                , alpha = weight
+                , alpha = if(displayAll) weight else NULL
                 , label = groups
                 , size = top
                 )
            ) +
       geom_point() +
-      geom_text_repel(data = diagnosticDf %>%
+      ggrepel::geom_text_repel(data = df %>%
                         dplyr::filter(best)
                       , size = 2
                       , show.legend = FALSE
@@ -204,25 +559,27 @@
                       ) +
       facet_grid(as.formula(paste0(labelDiagnostic,"~method"))
                  , scales="free_y"
-                 ,  labeller = label_wrap_gen(25,multi_line = TRUE)
+                 ,  labeller = label_wrap_gen(20,multi_line = TRUE)
                  ) +
       labs(colour = "Combination"
            , alpha = "Diagnostic used" #paste0("Top ",unique(diagnosticDf$topThresh)*100,"%")
-           , title = paste0("Labels indicate top ",numbers2words(unique(diagnosticDf$bestThresh))," results")
-           , size = paste0("Best ",(1-unique(diagnosticDf$topThresh))*100,"%")
+           , title = paste0("Labels indicate top ",numbers2words(unique(df$bestThresh))," results")
+           , size = paste0("Best ",(unique(df$topThresh))*100,"%")
            ) +
       scale_colour_viridis_c() +
       scale_x_continuous(breaks = scales::pretty_breaks()) +
-      theme(strip.text.y = element_text(angle = 0))
+      theme(strip.text.y = element_text(angle = 0)
+            , strip.text.x = element_text(angle = 90)
+            )
     
   }
   
   
   diagnostic_df <- function(df
                             , useWeights = "weightClusters"
-                            , diagnosticMinGroups = targetMinGroups
+                            , diagnosticMinGroups = min(possibleGroups)
                             , summariseMethod = median
-                            , topThresh = 2/3
+                            , topThresh = 0.25
                             , bestThresh = 5
                             , diagnosticDf = diagnostics
                             ) {
@@ -250,7 +607,7 @@
       dplyr::mutate(combo = scales::rescale(combo,to=c(0,1))) %>%
       dplyr::mutate(topThresh = topThresh
                     , bestThresh = bestThresh
-                    , top = combo >= topThresh
+                    , top = combo >= quantile(combo,probs = 1-topThresh,na.rm = TRUE)
                     , top = if_else(is.na(top),FALSE,top)
                     , best = combo >= sort(unique(.$combo),TRUE)[bestThresh]
                     , best = if_else(is.na(best),FALSE,best)
@@ -281,6 +638,67 @@
 
 
   
+#--------GIS----------
+  
+  # Calculate area in hectares of levels within a raster or polygon within another polygon boundary
+  
+  calc_poly_areas <- function(boundary,toSummarise) {
+    
+    boundary <- st_make_valid(boundary) %>%
+      st_transform(crs = 8059)
+    
+    if(grepl("raster",tolower(class(toSummarise)))) {
+      
+      res <- raster::extract(toSummarise
+                             ,boundary
+                             ,df = TRUE
+      ) %>%
+        as_tibble() %>%
+        dplyr::select(ID = 2) %>%
+        dplyr::count(ID, name = "cells") %>%
+        dplyr::mutate(hectares = res(toSummarise)[[1]]*res(toSummarise)[[2]]*cells/10000
+                      , prop = hectares/(as.numeric(st_area(boundary))/10000)
+                      , per = 100*prop
+        ) %>%
+        dplyr::left_join(ecosystemsDesc, by = c("ID" = "rclNum"))
+      
+    }
+    
+    if("sf" %in% class(toSummarise)) {
+      
+      toSummarise <- st_make_valid(toSummarise) %>%
+        st_transform(crs = 8059)
+      
+      subPolys <- st_intersection(toSummarise,boundary)
+      
+      res <- subPolys %>%
+        dplyr::mutate(hectares = as.numeric(st_area(geometry))/10000) %>%
+        st_set_geometry(NULL) %>%
+        dplyr::filter(!is.na(SA_VEG_ID)) %>%
+        dplyr::group_by(SA_VEG_ID,VEG_ID,VG_GEN_STR,VG_STR_FOR,BROAD_DESC,DOMSP_GENS,DETSP_DOM,ALLIANCE,DOMSP_LAY
+                        , SA_VEG_DES
+        ) %>%
+        dplyr::summarise(hectares = sum(hectares)) %>%
+        dplyr::ungroup() %>%
+        dplyr::mutate(prop = hectares/(as.numeric(st_area(boundary))/10000))
+      
+    }
+    
+    return(res)
+    
+  }
+  
+  # add coordinate columns to a sf point object
+  # https://github.com/r-spatial/sf/issues/231
+  sfc_as_cols <- function(x, names = c("x","y")) {
+    stopifnot(inherits(x,"sf") && inherits(sf::st_geometry(x),"sfc_POINT"))
+    ret <- sf::st_coordinates(x)
+    ret <- tibble::as_tibble(ret)
+    stopifnot(length(names) == ncol(ret))
+    x <- x[ , !names(x) %in% names]
+    ret <- setNames(ret,names)
+    dplyr::bind_cols(x,ret)
+  }
 
 
 # Convert deg°min'sec to decimal degrees
@@ -294,6 +712,21 @@
       dplyr::mutate(across(all_of(c("deg","min","sec")),as.numeric)) %>%
       dplyr::mutate(!!ensym(into) := deg + min/60 + sec/60^2) %>%
       dplyr::select(all_of(dfNames),!!ensym(into))
+    
+  }
+  
+#-------Bibliographies----------
+  
+# get next 'RN' number to use
+  
+  next_bib_no <- function(bibPath = fs::path("..","template","toCommon","refs.bib")) {
+    
+    as_tibble(read_lines(bibPath)) %>%
+      dplyr::filter(grepl("^@",value)) %>%
+      dplyr::mutate(value = parse_number(value)) %>%
+      dplyr::pull(value) %>%
+      max() %>%
+      `+` (1)
     
   }
   
@@ -322,6 +755,58 @@
     
   }
 
+# make package bibliography, including tweaks for known package issues.
+  fix_bib <- function(bibFile, makeKey = FALSE, isPackageBib = FALSE) {
+    
+    inRefs <- bib2df::bib2df(bibFile)
+    
+    namesInRefs <- colnames(inRefs) %>%
+      grep("\\.\\d+$",.,value = TRUE,invert = TRUE) %>%
+      `[`(1:28) %>%
+      c(.,"COPYRIGHT")
+    
+    refs <- inRefs %>%
+      {if(isPackageBib) (.) %>% dplyr::mutate(package = gsub("R-|\\d{4}","",BIBTEXKEY)) else (.)} %>%
+      tidytext::unnest_tokens("titleWords"
+                              ,TITLE
+                              ,token = "regex"
+                              ,pattern = " "
+                              ,to_lower = FALSE
+                              #,strip_punct = FALSE
+                              ,collapse = FALSE
+                              ) %>%
+      dplyr::mutate(titleWords = gsub("\\{|\\}","",titleWords)
+                    , isCap = grepl(paste0(LETTERS,collapse="|"),titleWords)
+                    , titleWords = if_else(isCap,paste0("{",titleWords,"}"),titleWords)
+                    ) %>%
+      tidyr::nest(data = c(titleWords,isCap)) %>%
+      dplyr::mutate(TITLE = map_chr(data,. %>% dplyr::pull(titleWords) %>% paste0(collapse = " "))
+                    , AUTHOR = map(AUTHOR,~gsub("Microsoft Corporation","{Microsoft Corporation}",.))
+                    , AUTHOR = map(AUTHOR,~gsub("Fortran original by |R port by ","",.))
+                    , AUTHOR = map(AUTHOR, ~gsub("with contributions by","and",.))
+                    , AUTHOR = map(AUTHOR, ~gsub("Â "," ",.))
+                    , YEAR = substr(YEAR,1,4)
+                    ) %>%
+      {if(makeKey) (.) %>%
+          dplyr::mutate(BIBTEXKEY = map2_chr(AUTHOR
+                                       ,YEAR
+                                       ,~paste0(toupper(gsub("[[:punct:]]|\\s","",.x[[1]]))
+                                                , .y
+                                                )
+                                       )
+                        ) else (.)} %>%
+      {if(isPackageBib) (.) %>% dplyr::mutate(TITLE = map2_chr(package,TITLE,~gsub(.x,paste0("{",.x,"}"),.y))) else (.)} %>%
+      dplyr::select(any_of(namesInRefs)) %>%
+      dplyr::filter(!grepl("MEDIA SCREEN AND",CATEGORY))
+    
+    bib2df::df2bib(refs,bibFile)
+    
+    return(refs)
+    
+  }
+  
+
+#------Git----------
 
   # Git add.
   gitadd <- function(dir = getwd()){
@@ -378,55 +863,7 @@
     
   }
   
-# make package bibliography, including tweaks for known package issues.
-  fix_bib <- function(bibFile, makeKey = FALSE, isPackageBib = FALSE) {
-    
-    inRefs <- bib2df::bib2df(bibFile)
-    
-    namesInRefs <- colnames(inRefs) %>%
-      grep("\\.\\d+$",.,value = TRUE,invert = TRUE) %>%
-      `[`(1:28) %>%
-      c(.,"COPYRIGHT")
-    
-    refs <- inRefs %>%
-      {if(isPackageBib) (.) %>% dplyr::mutate(package = gsub("R-|\\d{4}","",BIBTEXKEY)) else (.)} %>%
-      tidytext::unnest_tokens("titleWords"
-                              ,TITLE
-                              ,token = "regex"
-                              ,pattern = " "
-                              ,to_lower = FALSE
-                              #,strip_punct = FALSE
-                              ,collapse = FALSE
-                              ) %>%
-      dplyr::mutate(titleWords = gsub("\\{|\\}","",titleWords)
-                    , isCap = grepl(paste0(LETTERS,collapse="|"),titleWords)
-                    , titleWords = if_else(isCap,paste0("{",titleWords,"}"),titleWords)
-                    ) %>%
-      tidyr::nest(data = c(titleWords,isCap)) %>%
-      dplyr::mutate(TITLE = map_chr(data,. %>% dplyr::pull(titleWords) %>% paste0(collapse = " "))
-                    , AUTHOR = map(AUTHOR,~gsub("Microsoft Corporation","{Microsoft Corporation}",.))
-                    , AUTHOR = map(AUTHOR,~gsub("Fortran original by |R port by ","",.))
-                    , AUTHOR = map(AUTHOR, ~gsub("with contributions by","and",.))
-                    , AUTHOR = map(AUTHOR, ~gsub("Â "," ",.))
-                    , YEAR = substr(YEAR,1,4)
-                    ) %>%
-      {if(makeKey) (.) %>%
-          dplyr::mutate(BIBTEXKEY = map2_chr(AUTHOR
-                                       ,YEAR
-                                       ,~paste0(toupper(gsub("[[:punct:]]|\\s","",.x[[1]]))
-                                                , .y
-                                                )
-                                       )
-                        ) else (.)} %>%
-      {if(isPackageBib) (.) %>% dplyr::mutate(TITLE = map2_chr(package,TITLE,~gsub(.x,paste0("{",.x,"}"),.y))) else (.)} %>%
-      dplyr::select(any_of(namesInRefs)) %>%
-      dplyr::filter(!grepl("MEDIA SCREEN AND",CATEGORY))
-    
-    bib2df::df2bib(refs,bibFile)
-    
-    return(refs)
-    
-  }
+
 
 
 # Are the values within a column unique
@@ -524,6 +961,100 @@ unscale_data <- function(scaledData) {
     }
     
     return(x[inds,])
+  }
+  
+  
+#--------Random Forests----------
+  
+  # Iteratively add trees to a random forest with tibble output
+  add_row_rf_simple <- function(resDf,rowGrow = 499) {
+    
+    prevRf <- resDf$rf[nrow(resDf)][[1]]
+    
+    nextRf <- rf_simple(rowGrow)
+    
+    newRf <- combine(prevRf,nextRf)
+    
+    resDf %>%
+      dplyr::bind_rows(tibble(start = Sys.time()
+                              , run = max(resDf$run) + 1
+                              ) %>%
+                         dplyr::mutate(trees = max(resDf$trees) + rowGrow
+                                       , rf = list(newRf)
+                                       #, rfProbCell = map(rf,rf_prob_cell)
+                                       #, meanVotesCell = map_dbl(rfProbCell,~mean(.$votes))
+                                       #, rfProbClass = map(rfProbCell,rf_prob_class)
+                                       #, meanVotesClass = map_dbl(rfProbClass,~mean(.$votes))
+                                       , deltaPrev = map_dbl(rf
+                                                             , ~tibble(last = .$predicted
+                                                                       , prev = prevRf$predicted
+                                                                       ) %>%
+                                                               dplyr::mutate(rows = nrow(.)
+                                                                             , same = last == prev
+                                                                             ) %>%
+                                                               dplyr::summarise(same = sum(same)/mean(rows)) %>%
+                                                               dplyr::pull(same)
+                                                             )
+                                       , kappaPrevRf = map_dbl(rf
+                                                                ,~caret::confusionMatrix(.$predicted
+                                                                                         ,prevRf$predicted
+                                                                                         )$overall[["Kappa"]]
+                                                                )
+                                       , end = Sys.time()
+                                       )
+                       ) %>%
+      dplyr::mutate(seconds = lag(seconds, default = 0) + as.numeric(difftime(end,start, units = "secs")))
+    
+  }
+  
+  rf_simple <- function(trees = 99, cores = length(cl), df = envData) {
+    
+    # Parallel computation depends upon a parallel backend that must be registered before running foreach %dopar%
+    # cores here is just used to help split up the task in foreach, it does not create the a parallel cluster
+    
+    x <- envData[,which(names(envData) %in% envNames)]
+    y <- envData %>% dplyr::pull(cluster)
+    
+    # Assumes envData exists and is ready to go
+    foreach(ntree=rep(ceiling(trees/cores), cores)
+            , .combine=combine
+            , .packages = c("randomForest")
+            , .export = c("useMtry")
+            ) %dopar%
+      randomForest::randomForest(x = x
+                                 , y = y
+                                 , ntree = ntree
+                                 , importance = TRUE
+                                 , mtry = useMtry
+                                 )
+    
+    }
+  
+  # Get some rf results
+  rf_prob_cell <- function(rf
+                     , envDf = predSample
+                     , classes = levels(envData$cluster)
+                     , targetVotes = 0.5
+                     ) {
+    
+    predict(rf,envDf,type = "prob") %>%
+      as_tibble() %>%
+      dplyr::mutate(id = row_number()
+                    , across(where(is.matrix),as.numeric)
+                    ) %>%
+      tidyr::pivot_longer(any_of(classes), names_to = "predCluster", values_to = "votes") %>%
+      dplyr::group_by(id) %>%
+      dplyr::slice(which.max(votes))
+    
+  }
+  
+  rf_prob_class <- function(rfProbCells) {
+    
+    rfProbCells %>%
+      dplyr::group_by(predCluster) %>%
+      dplyr::summarise(votes = mean(votes)) %>%
+      dplyr::ungroup()
+    
   }
 
 # A function to run random forest over a df with first column 'cluster' and other columns explanatory
@@ -670,6 +1201,84 @@ unscale_data <- function(scaledData) {
     
   }
     
+  # Generate predictions with oob/cv probabilities
+  
+  caret_pred <- function(trainObj,data,idCol = "cell", groupCol = "cluster") {
+    
+    rfType <- class(trainObj)
+    
+    if("randomForest" %in% rfType)  mod <- trainObj
+    if("randomForest" %in% class(trainObj$finalModel)) mod <- trainObj$finalModel
+    
+    stopifnot(exists("mod"))
+    
+    tibble(cell = data %>% dplyr::pull(!!ensym(idCol))
+           , cluster = data %>% dplyr::pull(!!ensym(groupCol))
+           , predCluster = mod$predicted
+           ) %>%
+      dplyr::bind_cols(as_tibble(mod$votes) %>%
+                         dplyr::mutate(across(.fns = as.numeric))
+                       ) %>%
+      dplyr::mutate(across(where(is.matrix),as.numeric)) %>%
+      dplyr::mutate(predCluster = factor(predCluster, levels = levels(data %>% dplyr::pull(!!ensym(groupCol)))))
+    
+  }
+  
+
+#---------Data access-----------
+  
+  safe_read <- safely(rio::import)
+  
+  
+  get_new_data <- function(datasource, timeDiff) {
+    
+    if(inARush) FALSE else {
+      
+      dsFile <- fs::path("out",datasource,paste0(datasource,".feather"))
+      
+      if(file.exists(dsFile)) {
+        
+        difftime(Sys.time()
+                 , fs::file_info(dsFile)$modification_time
+                 , units = "days"
+                 ) > timeDiff
+        
+      } else TRUE
+      
+    }
+    
+  }
+  
+  
+  # get data from existing assembled data source
+  get_data <- function(dataName,lgl,timer = exists("extractTimer")) {
+    
+    outFile <- path("out",dataName,paste0(dataName,".feather"))
+    
+    dir_create(dirname(outFile))
+    
+    if(lgl) {
+      
+      dataFuntion <- paste0("get_",dataName)
+      
+      if(timer) extractTimer$start(dataName)
+      
+      temp <- do.call(dataFuntion
+                      , args = list(outFile = outFile)
+                      )
+      
+      if(timer) extractTimer$stop(dataName,comment = paste0(nrow(temp)," records"))
+      
+    } else {
+      
+      temp <- rio::import(outFile)
+      
+    }
+    
+    return(temp)
+    
+  }
+  
     
 # Function to get data out of 32 bit MS Access from 64 bit R
 # see https://stackoverflow.com/questions/13070706/how-to-connect-r-with-access-database-in-64-bit-window
@@ -1092,6 +1701,15 @@ ah2sp <- function(x, increment=360, rnd=10, proj4string=CRS(as.character(NA)),to
     
   }
   
+  
+#-------Miscellaneous--------
+  
+  # https://stackoverflow.com/questions/64519640/error-in-summary-connectionconnection-invalid-connection
+  unregister_dopar <- function() {
+    env <- foreach:::.foreachGlobals
+    rm(list=ls(name=env), pos=env)
+  }
+  
 # function to read in previously saved rds
   
   read_rds_file <- function(fileName) if(file.exists(fileName)) read_rds(fileName) else NULL
@@ -1255,6 +1873,7 @@ ah2sp <- function(x, increment=360, rnd=10, proj4string=CRS(as.character(NA)),to
   }
   
   
+#---------Taxonomy----------
 
 # a function to retrieve taxonomy to accepted names and retrieve taxonomic hierarchy for a df with a column of taxonomic names
   
@@ -1299,7 +1918,7 @@ ah2sp <- function(x, increment=360, rnd=10, proj4string=CRS(as.character(NA)),to
     alreadyDone <- c(get0("alreadyDone01"),get0("alreadyDone02"))
     
     toCheck <- df %>%
-      dplyr::select(sppCol) %>%
+      dplyr::select(all_of(sppCol)) %>%
       dplyr::distinct() %>%
       dplyr::pull()
     
@@ -1307,7 +1926,7 @@ ah2sp <- function(x, increment=360, rnd=10, proj4string=CRS(as.character(NA)),to
       dplyr::filter(!grepl("BOLD:.*\\d{4}",originalName)
                     , !is.na(originalName)
                     ) %>%
-      dplyr::mutate(searchedName = gsub("dead |\\s*\\(.*\\).*|\\'|\\?| spp\\.| sp\\.| ssp\\.| var\\.| ex| [A-Z].*|#|\\s^"
+      dplyr::mutate(searchedName = gsub("\\s*\\(.*\\).*|\\'|\\?| spp\\.| sp\\.| ssp\\.| var\\.| ex| [A-Z].*|#|\\s^"
                                 ,""
                                 ,originalName
                                 )
@@ -1445,6 +2064,8 @@ ah2sp <- function(x, increment=360, rnd=10, proj4string=CRS(as.character(NA)),to
                       , language == "eng"
                       ) %>%
         dplyr::pull(vernacularName) %>%
+        unique() %>%
+        sort() %>%
         paste0(collapse = ", ")
       
     } else if(hasEng) {
@@ -1455,6 +2076,7 @@ ah2sp <- function(x, increment=360, rnd=10, proj4string=CRS(as.character(NA)),to
         dplyr::mutate(common = gsub("^\\s|\\s$|etc","",common)) %>%
         dplyr::distinct(common) %>%
         dplyr::pull(common) %>%
+        unique() %>%
         sort() %>%
         paste0(collapse = ", ")
       

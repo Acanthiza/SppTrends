@@ -13,7 +13,7 @@
   
   getNewData <- FALSE
   
-  runReason <- paste0("Test workflow after changes. Testing = ",testing,".")
+  runReason <- paste0("KI spp. Testing = ",testing,".")
   
   dir() %>%
     grep("^\\d{4}_.*\\.R$",.,value=TRUE) %>%
