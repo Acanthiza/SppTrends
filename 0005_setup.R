@@ -401,15 +401,9 @@
   
 #---------References-------
   
-  packageBibFile <- "packageRefs.bib"
-  
-  write_bib(packages
-            ,file=packageBibFile
-            ,tweak=TRUE
-            ,width=1000
-            )
-  
-  refs <- fix_bib(packageBibFile,isPackageBib = TRUE)
+  pac <- .packages()
+  knitr::write_bib(pac, "package_citations.bib")
+  refs <- bib2df::bib2df("package_citations.bib")
   
   
 #------Settings - save or load -------
