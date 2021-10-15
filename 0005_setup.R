@@ -163,6 +163,7 @@
                        ,"parallelDist"
                        ,"ubms"
                        ,"red"
+                       ,"cooccur"
                        )
                      )
   
