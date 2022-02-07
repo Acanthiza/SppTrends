@@ -21,6 +21,8 @@ bibliography:                 [common/refs.bib,packageRefs.bib,gbifDataRef.bib]
 ```{r setup, echo = FALSE, warning = FALSE, error = FALSE, message = FALSE}
 
   library("timeR")
+  library("envClean") # for get_gbif_common()
+
   reportTimer <- createTimer(precision = "ms"
                              , verbose = FALSE
                              )

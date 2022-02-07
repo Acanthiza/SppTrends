@@ -40,14 +40,18 @@ if(testing) {
   
   
   spp <- c(NULL
-          , "Melithreptus gularis"
-          , "Melithreptus lunatus"
-          , "Amytornis striatus"
+          # , "Melithreptus gularis"
+          # , "Melithreptus lunatus"
+          # , "Amytornis striatus"
+          , "Neophema chrysostoma"
+          , "Stipiturus malachurus"
+          , "Stagonopleura guttata"
+          , "Melanodryas cucullata"
           )
   
   
   spp <- c(spp
-           ,kiSpp
+           #, kiSpp
            )
   
     

@@ -10,7 +10,7 @@
   unlink("_main.Rmd")
   
   # Make book, collecting all .Rmd files in order and knitting to book
-  render_book("Rmd")
+  render_book("Report.Rmd")
   
   #rmarkdown::render("_test.Rmd")
   

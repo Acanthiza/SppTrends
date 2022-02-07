@@ -18,23 +18,23 @@
   
   # Which polygons define the AOI?
   polyMask <- c(NULL
-                #, "Simpson Strzelecki Dunefields"
-                #, "Stony Plains"
-                #, "Naracoorte Coastal Plain"
-                #, "Nullarbor"
-                #, "Southern Volcanic Plain"
-                #, "Riverina"
-                #, "Central Ranges"
-                #, "Murray Darling Depression"
+                , "Simpson Strzelecki Dunefields"
+                , "Stony Plains"
+                , "Naracoorte Coastal Plain"
+                , "Nullarbor"
+                , "Southern Volcanic Plain"
+                , "Riverina"
+                , "Central Ranges"
+                , "Murray Darling Depression"
                 , "Flinders Lofty Block"
-                #, "Hampton"
+                , "Hampton"
                 , "Kanmantoo"
-                #, "Channel Country"
-                #, "Great Victoria Desert"
-                #, "Broken Hill Complex"
-                #, "Finke"
-                #, "Eyre Yorke Block"
-                #, "Gawler"
+                , "Channel Country"
+                , "Great Victoria Desert"
+                , "Broken Hill Complex"
+                , "Finke"
+                , "Eyre Yorke Block"
+                , "Gawler"
                 )
   
   # polyMask <- c(NULL
